@@ -9,7 +9,7 @@ import { getServerStats } from './stats.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 8080;
-const SOURCE_URL = process.env.SOURCE_URL || 'https://github.com/mahansford/intrahub';
+const SOURCE_URL = process.env.SOURCE_URL || 'https://github.com/mahansford/IntraHub';
 
 // Bumped from the 100kb default so a small uploaded logo image (stored as a
 // base64 data URL in settings) fits in one PATCH /api/settings request.

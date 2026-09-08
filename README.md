@@ -35,8 +35,8 @@ Licensed under [AGPL-3.0-or-later](LICENSE).
 ## Quick start
 
 ```bash
-git clone https://github.com/mahansford/intrahub.git
-cd intrahub
+git clone https://github.com/mahansford/IntraHub.git
+cd IntraHub
 cp .env.example .env
 ```
 
@@ -48,13 +48,13 @@ generic default (see [Configuration](#configuration) below).
 One-time setup on your Postgres server:
 
 ```sql
-CREATE DATABASE intranet;
-CREATE USER intranet WITH PASSWORD 'choose-a-real-password';
-GRANT ALL PRIVILEGES ON DATABASE intranet TO intranet;
+CREATE DATABASE intrahub;
+CREATE USER intrahub WITH PASSWORD 'choose-a-real-password';
+GRANT ALL PRIVILEGES ON DATABASE intrahub TO intrahub;
 ```
 
-(On Postgres 15+, also connect to the `intranet` database and run
-`GRANT ALL ON SCHEMA public TO intranet;` if the app can't create tables.)
+(On Postgres 15+, also connect to the `intrahub` database and run
+`GRANT ALL ON SCHEMA public TO intrahub;` if the app can't create tables.)
 
 Then run:
 
