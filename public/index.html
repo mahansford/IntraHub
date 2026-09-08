@@ -24,6 +24,9 @@
           <div id="clock-time">--:--</div>
           <div id="clock-date">Loading date…</div>
         </div>
+        <button id="kiosk-toggle" class="edit-toggle" type="button" title="Kiosk mode">
+          <span id="kiosk-toggle-icon"></span>
+        </button>
         <button id="edit-toggle" class="edit-toggle" type="button">
           <span id="edit-toggle-icon"></span>
           <span id="edit-toggle-label">Customize</span>
@@ -35,6 +38,9 @@
   <main id="dashboard" class="grid">
     <p class="muted loading-placeholder">Loading dashboard…</p>
   </main>
+
+  <input type="file" id="background-input" accept="image/*" hidden />
+  <input type="file" id="backup-restore-input" accept=".yml,.yaml,text/yaml" hidden />
 
   <footer class="footer">
     <p>Made with <span id="footer-heart" class="heart"></span> for our family — <span id="footer-license">AGPL-3.0</span> ·

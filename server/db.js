@@ -1,4 +1,5 @@
 import pg from 'pg';
+import yaml from 'js-yaml';
 
 const { Pool } = pg;
 
@@ -11,7 +12,19 @@ const pool = new Pool({
   max: 5,
 });
 
-const SECTION_TYPES = ['weather', 'todo', 'links', 'leaderboard', 'stats', 'notes', 'countdown', 'stocks'];
+const SECTION_TYPES = [
+  'weather',
+  'todo',
+  'links',
+  'leaderboard',
+  'stats',
+  'notes',
+  'countdown',
+  'stocks',
+  'chores',
+  'photos',
+  'calendar',
+];
 
 async function ensureSchema() {
   await pool.query(`
@@ -24,13 +37,17 @@ async function ensureSchema() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS sections (
       id SERIAL PRIMARY KEY,
-      type TEXT NOT NULL CHECK (type IN ('weather','todo','links','leaderboard','stats','notes','countdown','stocks')),
+      type TEXT NOT NULL CHECK (type IN ('weather','todo','links','leaderboard','stats','notes','countdown','stocks','chores','photos','calendar')),
       title TEXT NOT NULL,
       enabled BOOLEAN NOT NULL DEFAULT TRUE,
       sort_order INTEGER NOT NULL DEFAULT 0,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `);
+  // Per-section accent color override, added after the initial release —
+  // ALTER ... IF NOT EXISTS so it's safe to run against an already-seeded
+  // database, not just a fresh one.
+  await pool.query(`ALTER TABLE sections ADD COLUMN IF NOT EXISTS accent_color TEXT;`);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS links (
@@ -90,6 +107,52 @@ async function ensureSchema() {
       sort_order INTEGER NOT NULL DEFAULT 0
     );
   `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS chore_kids (
+      id SERIAL PRIMARY KEY,
+      section_id INTEGER NOT NULL REFERENCES sections(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      icon TEXT NOT NULL DEFAULT 'star',
+      sort_order INTEGER NOT NULL DEFAULT 0
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS chore_tasks (
+      id SERIAL PRIMARY KEY,
+      chore_kid_id INTEGER NOT NULL REFERENCES chore_kids(id) ON DELETE CASCADE,
+      text TEXT NOT NULL,
+      sort_order INTEGER NOT NULL DEFAULT 0
+    );
+  `);
+
+  // A task is "done today" iff a row exists here for (task_id, today) — so
+  // completion naturally resets every day with no cron job needed.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS chore_completions (
+      task_id INTEGER NOT NULL REFERENCES chore_tasks(id) ON DELETE CASCADE,
+      completed_date DATE NOT NULL,
+      PRIMARY KEY (task_id, completed_date)
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS photos (
+      id SERIAL PRIMARY KEY,
+      section_id INTEGER NOT NULL REFERENCES sections(id) ON DELETE CASCADE,
+      image_data_url TEXT NOT NULL,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS calendar_config (
+      section_id INTEGER PRIMARY KEY REFERENCES sections(id) ON DELETE CASCADE,
+      ics_url TEXT
+    );
+  `);
 }
 
 async function getSetting(key, fallback = null) {
@@ -119,8 +182,9 @@ async function isFreshInstall() {
 
 /**
  * Seeds sections/links/todo items/leaderboard entries/settings from a parsed
- * config object (see config/default.yml for shape). Only runs against an
- * empty database, so it never clobbers live edits made through the UI.
+ * config object (see config/default.yml for shape). Used both for the
+ * first-boot seed (only against an empty database) and for restoring a
+ * backup (against a just-wiped database — see importBackup below).
  */
 async function seedFromConfig(config) {
   const client = await pool.connect();
@@ -143,9 +207,9 @@ async function seedFromConfig(config) {
       if (!SECTION_TYPES.includes(section.type)) continue;
       order += 1;
       const { rows } = await client.query(
-        `INSERT INTO sections (type, title, enabled, sort_order)
-         VALUES ($1, $2, $3, $4) RETURNING id`,
-        [section.type, section.title || section.type, section.enabled !== false, order]
+        `INSERT INTO sections (type, title, enabled, sort_order, accent_color)
+         VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+        [section.type, section.title || section.type, section.enabled !== false, order, section.accent_color || null]
       );
       const sectionId = rows[0].id;
 
@@ -208,6 +272,35 @@ async function seedFromConfig(config) {
           );
         }
       }
+
+      if (section.type === 'chores') {
+        let kidOrder = 0;
+        for (const kid of section.kids || []) {
+          kidOrder += 1;
+          const { rows: kidRows } = await client.query(
+            `INSERT INTO chore_kids (section_id, name, icon, sort_order) VALUES ($1, $2, $3, $4) RETURNING id`,
+            [sectionId, kid.name, kid.icon || 'star', kidOrder]
+          );
+          let taskOrder = 0;
+          for (const task of kid.tasks || []) {
+            taskOrder += 1;
+            await client.query(
+              `INSERT INTO chore_tasks (chore_kid_id, text, sort_order) VALUES ($1, $2, $3)`,
+              [kidRows[0].id, typeof task === 'string' ? task : task.text, taskOrder]
+            );
+          }
+        }
+      }
+
+      if (section.type === 'calendar') {
+        await client.query(`INSERT INTO calendar_config (section_id, ics_url) VALUES ($1, $2)`, [
+          sectionId,
+          section.ics_url || null,
+        ]);
+      }
+
+      // Photos aren't seeded from YAML (binary image data doesn't belong in
+      // a text config file) — add them via the UI after first boot.
     }
 
     await client.query('COMMIT');
@@ -219,4 +312,118 @@ async function seedFromConfig(config) {
   }
 }
 
-export { pool, ensureSchema, getSetting, getSettings, setSetting, isFreshInstall, seedFromConfig, SECTION_TYPES };
+/** Builds a config-shaped object of the current live dashboard, suitable for
+ * yaml.dump()-ing as a downloadable backup and later feeding straight back
+ * into seedFromConfig() to restore it. */
+async function buildBackupObject() {
+  const settings = await getSettings();
+  const { rows: sections } = await pool.query(
+    'SELECT id, type, title, enabled, sort_order, accent_color FROM sections ORDER BY sort_order ASC, id ASC'
+  );
+
+  const out = { site: settings, sections: [] };
+
+  for (const section of sections) {
+    const base = { type: section.type, title: section.title, enabled: section.enabled };
+    if (section.accent_color) base.accent_color = section.accent_color;
+
+    if (section.type === 'links') {
+      const { rows } = await pool.query(
+        'SELECT label, url, icon FROM links WHERE section_id = $1 ORDER BY sort_order ASC, id ASC',
+        [section.id]
+      );
+      base.links = rows;
+    } else if (section.type === 'leaderboard') {
+      const { rows } = await pool.query(
+        'SELECT name, emoji, points FROM leaderboard_entries WHERE section_id = $1 ORDER BY sort_order ASC, id ASC',
+        [section.id]
+      );
+      base.entries = rows;
+    } else if (section.type === 'todo') {
+      const { rows } = await pool.query(
+        'SELECT text, done FROM todo_items WHERE section_id = $1 ORDER BY created_at ASC',
+        [section.id]
+      );
+      base.items = rows;
+    } else if (section.type === 'notes') {
+      const { rows } = await pool.query(
+        'SELECT text, author FROM notes_items WHERE section_id = $1 ORDER BY created_at ASC',
+        [section.id]
+      );
+      base.notes = rows;
+    } else if (section.type === 'countdown') {
+      const { rows } = await pool.query(
+        'SELECT label, target_date FROM countdown_config WHERE section_id = $1',
+        [section.id]
+      );
+      if (rows[0]) {
+        base.label = rows[0].label;
+        base.target_date = rows[0].target_date ? new Date(rows[0].target_date).toISOString().slice(0, 10) : null;
+      }
+    } else if (section.type === 'stocks') {
+      const { rows } = await pool.query(
+        'SELECT symbol FROM stock_symbols WHERE section_id = $1 ORDER BY sort_order ASC, id ASC',
+        [section.id]
+      );
+      base.symbols = rows.map((r) => r.symbol);
+    } else if (section.type === 'chores') {
+      const { rows: kids } = await pool.query(
+        'SELECT id, name, icon FROM chore_kids WHERE section_id = $1 ORDER BY sort_order ASC, id ASC',
+        [section.id]
+      );
+      base.kids = [];
+      for (const kid of kids) {
+        const { rows: tasks } = await pool.query(
+          'SELECT text FROM chore_tasks WHERE chore_kid_id = $1 ORDER BY sort_order ASC, id ASC',
+          [kid.id]
+        );
+        base.kids.push({ name: kid.name, icon: kid.icon, tasks: tasks.map((t) => t.text) });
+      }
+    } else if (section.type === 'calendar') {
+      const { rows } = await pool.query('SELECT ics_url FROM calendar_config WHERE section_id = $1', [section.id]);
+      base.ics_url = rows[0]?.ics_url || null;
+    }
+    // 'weather', 'stats' and 'photos' carry no extra seedable config.
+
+    out.sections.push(base);
+  }
+
+  return out;
+}
+
+async function buildBackupYaml() {
+  const obj = await buildBackupObject();
+  return yaml.dump(obj, { lineWidth: -1 });
+}
+
+/** Wipes all dashboard content and settings, then reseeds from a parsed
+ * config object (e.g. a previously-exported backup). Destructive — callers
+ * must confirm with the user before invoking this. */
+async function importBackup(config) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('DELETE FROM sections'); // cascades to all child tables
+    await client.query('DELETE FROM settings');
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+  await seedFromConfig(config);
+}
+
+export {
+  pool,
+  ensureSchema,
+  getSetting,
+  getSettings,
+  setSetting,
+  isFreshInstall,
+  seedFromConfig,
+  buildBackupYaml,
+  importBackup,
+  SECTION_TYPES,
+};

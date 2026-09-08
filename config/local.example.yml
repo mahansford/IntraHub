@@ -57,3 +57,22 @@ sections:
   - type: stocks
     title: Stocks
     symbols: ["AAPL", "MSFT"]
+
+  - type: chores
+    title: Chores
+    kids:
+      - name: Kid 1
+        icon: cat
+        tasks: ["Make bed", "Feed the fish"]
+      - name: Kid 2
+        icon: dog
+        tasks: ["Brush teeth", "Tidy toys"]
+
+  # Photos and Calendar aren't seedable from YAML (binary image data /
+  # a real ICS link don't belong in a text config) — add them from the
+  # Customize screen after first boot.
+  - type: photos
+    title: Photos
+
+  - type: calendar
+    title: Calendar

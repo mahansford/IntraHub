@@ -1,11 +1,23 @@
 import express from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { pool, ensureSchema, getSettings, setSetting, isFreshInstall, seedFromConfig, SECTION_TYPES } from './db.js';
+import {
+  pool,
+  ensureSchema,
+  getSettings,
+  setSetting,
+  isFreshInstall,
+  seedFromConfig,
+  buildBackupYaml,
+  importBackup,
+  SECTION_TYPES,
+} from './db.js';
 import { loadSeedConfig } from './config.js';
 import * as auth from './auth.js';
 import { getServerStats } from './stats.js';
 import { getStockQuotes } from './stocks.js';
+import { getCalendarEvents } from './calendar.js';
+import yaml from 'js-yaml';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -179,8 +191,10 @@ const PUBLIC_SETTING_KEYS = [
   'weather_location_name',
   'theme',
   'logo_data_url',
+  'background_data_url',
 ];
 const MAX_LOGO_DATA_URL_LENGTH = 1_500_000; // ~1MB of base64, plenty for a small logo
+const MAX_BACKGROUND_DATA_URL_LENGTH = 2_500_000; // background images can be a bit bigger
 
 app.get('/api/settings', requireDb, async (req, res) => {
   const settings = await getSettings();
@@ -192,6 +206,9 @@ app.patch('/api/settings', requireDb, auth.requireEdit, async (req, res) => {
   if (typeof body.logo_data_url === 'string' && body.logo_data_url.length > MAX_LOGO_DATA_URL_LENGTH) {
     return res.status(400).json({ error: 'Logo image is too large — please use a smaller image.' });
   }
+  if (typeof body.background_data_url === 'string' && body.background_data_url.length > MAX_BACKGROUND_DATA_URL_LENGTH) {
+    return res.status(400).json({ error: 'Background image is too large — please use a smaller image.' });
+  }
   const updated = {};
   for (const key of PUBLIC_SETTING_KEYS) {
     if (typeof body[key] === 'string') {
@@ -199,14 +216,60 @@ app.patch('/api/settings', requireDb, auth.requireEdit, async (req, res) => {
       updated[key] = body[key];
     }
   }
+  // Explicit clear: {"background_data_url": null} removes a previously set
+  // background (distinct from omitting the key, which leaves it alone).
+  if (body.background_data_url === null) {
+    await setSetting('background_data_url', '');
+    updated.background_data_url = '';
+  }
+  if (body.logo_data_url === null) {
+    await setSetting('logo_data_url', '');
+    updated.logo_data_url = '';
+  }
   res.json(updated);
+});
+
+// ---- Backup / restore ----
+app.get('/api/backup', requireDb, auth.requireEdit, async (req, res) => {
+  try {
+    const yamlText = await buildBackupYaml();
+    res.setHeader('Content-Type', 'application/x-yaml');
+    res.setHeader('Content-Disposition', `attachment; filename="intrahub-backup-${new Date().toISOString().slice(0, 10)}.yml"`);
+    res.send(yamlText);
+  } catch (err) {
+    console.error('Backup export failed:', err.message);
+    res.status(500).json({ error: 'Could not build backup.' });
+  }
+});
+
+app.post('/api/backup', requireDb, auth.requireEdit, async (req, res) => {
+  const text = req.body?.yaml;
+  if (typeof text !== 'string' || !text.trim()) {
+    return res.status(400).json({ error: 'yaml is required' });
+  }
+  let parsed;
+  try {
+    parsed = yaml.load(text);
+  } catch (err) {
+    return res.status(400).json({ error: 'Could not parse that file as YAML.' });
+  }
+  if (!parsed || typeof parsed !== 'object') {
+    return res.status(400).json({ error: 'That file does not look like a valid backup.' });
+  }
+  try {
+    await importBackup(parsed);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Backup import failed:', err.message);
+    res.status(500).json({ error: 'Could not restore that backup.' });
+  }
 });
 
 // ---- Full dashboard (settings + sections + their contents) ----
 app.get('/api/dashboard', requireDb, async (req, res) => {
   const settings = await getSettings();
   const { rows: sections } = await pool.query(
-    'SELECT id, type, title, enabled, sort_order FROM sections ORDER BY sort_order ASC, id ASC'
+    'SELECT id, type, title, enabled, sort_order, accent_color FROM sections ORDER BY sort_order ASC, id ASC'
   );
 
   for (const section of sections) {
@@ -247,6 +310,30 @@ app.get('/api/dashboard', requireDb, async (req, res) => {
         [section.id]
       );
       section.symbols = rows;
+    } else if (section.type === 'chores') {
+      const { rows: kids } = await pool.query(
+        'SELECT id, name, icon, sort_order FROM chore_kids WHERE section_id = $1 ORDER BY sort_order ASC, id ASC',
+        [section.id]
+      );
+      for (const kid of kids) {
+        const { rows: tasks } = await pool.query(
+          `SELECT t.id, t.text, t.sort_order,
+                  EXISTS (SELECT 1 FROM chore_completions c WHERE c.task_id = t.id AND c.completed_date = CURRENT_DATE) AS "doneToday"
+           FROM chore_tasks t WHERE t.chore_kid_id = $1 ORDER BY t.sort_order ASC, t.id ASC`,
+          [kid.id]
+        );
+        kid.tasks = tasks;
+      }
+      section.kids = kids;
+    } else if (section.type === 'photos') {
+      const { rows } = await pool.query(
+        'SELECT id, image_data_url, sort_order FROM photos WHERE section_id = $1 ORDER BY sort_order ASC, id ASC',
+        [section.id]
+      );
+      section.photos = rows;
+    } else if (section.type === 'calendar') {
+      const { rows } = await pool.query('SELECT ics_url FROM calendar_config WHERE section_id = $1', [section.id]);
+      section.calendar = { ics_url: rows[0]?.ics_url || null };
     }
   }
 
@@ -262,11 +349,14 @@ app.post('/api/sections', requireDb, auth.requireEdit, async (req, res) => {
   const { rows: maxRows } = await pool.query('SELECT COALESCE(MAX(sort_order), 0) AS max FROM sections');
   const sortOrder = maxRows[0].max + 1;
   const { rows } = await pool.query(
-    'INSERT INTO sections (type, title, sort_order) VALUES ($1, $2, $3) RETURNING id, type, title, enabled, sort_order',
+    'INSERT INTO sections (type, title, sort_order) VALUES ($1, $2, $3) RETURNING id, type, title, enabled, sort_order, accent_color',
     [type, (title || type).trim() || type, sortOrder]
   );
   if (type === 'countdown') {
     await pool.query('INSERT INTO countdown_config (section_id, label) VALUES ($1, $2)', [rows[0].id, 'Countdown']);
+  }
+  if (type === 'calendar') {
+    await pool.query('INSERT INTO calendar_config (section_id) VALUES ($1)', [rows[0].id]);
   }
   res.status(201).json(rows[0]);
 });
@@ -291,7 +381,8 @@ app.post('/api/sections/reorder', requireDb, auth.requireEdit, async (req, res) 
 });
 
 app.patch('/api/sections/:id', requireDb, auth.requireEdit, async (req, res) => {
-  const { title, enabled } = req.body || {};
+  const body = req.body || {};
+  const { title, enabled } = body;
   const fields = [];
   const values = [];
   let i = 1;
@@ -303,10 +394,16 @@ app.patch('/api/sections/:id', requireDb, auth.requireEdit, async (req, res) => 
     fields.push(`enabled = $${i++}`);
     values.push(enabled);
   }
+  // accent_color: a hex string sets it, null explicitly clears it back to
+  // the theme default — distinct from omitting the key entirely.
+  if ('accent_color' in body) {
+    fields.push(`accent_color = $${i++}`);
+    values.push(typeof body.accent_color === 'string' && body.accent_color.trim() ? body.accent_color.trim() : null);
+  }
   if (!fields.length) return res.status(400).json({ error: 'nothing to update' });
   values.push(req.params.id);
   const { rows } = await pool.query(
-    `UPDATE sections SET ${fields.join(', ')} WHERE id = $${i} RETURNING id, type, title, enabled, sort_order`,
+    `UPDATE sections SET ${fields.join(', ')} WHERE id = $${i} RETURNING id, type, title, enabled, sort_order, accent_color`,
     values
   );
   if (!rows[0]) return res.status(404).json({ error: 'not found' });
@@ -524,6 +621,155 @@ app.patch('/api/sections/:id/countdown', requireDb, auth.requireEdit, async (req
     [req.params.id, label?.trim() || 'Countdown', targetDate || null]
   );
   res.json({ ...rows[0], target_date: toDateOnly(rows[0].target_date) });
+});
+
+// ---- Chores ----
+// Adding/removing kids and tasks is structural (PIN-protected). Toggling a
+// task done/not-done today is everyday use, like the to-do list.
+app.post('/api/sections/:id/chores/kids', requireDb, auth.requireEdit, async (req, res) => {
+  const { name, icon } = req.body || {};
+  if (!name || !name.trim()) return res.status(400).json({ error: 'name is required' });
+  const { rows: maxRows } = await pool.query(
+    'SELECT COALESCE(MAX(sort_order), 0) AS max FROM chore_kids WHERE section_id = $1',
+    [req.params.id]
+  );
+  const { rows } = await pool.query(
+    'INSERT INTO chore_kids (section_id, name, icon, sort_order) VALUES ($1, $2, $3, $4) RETURNING id, name, icon, sort_order',
+    [req.params.id, name.trim(), (icon || 'star').trim(), maxRows[0].max + 1]
+  );
+  res.status(201).json({ ...rows[0], tasks: [] });
+});
+
+app.patch('/api/chores/kids/:id', requireDb, auth.requireEdit, async (req, res) => {
+  const { name, icon } = req.body || {};
+  const fields = [];
+  const values = [];
+  let i = 1;
+  if (typeof name === 'string' && name.trim()) {
+    fields.push(`name = $${i++}`);
+    values.push(name.trim());
+  }
+  if (typeof icon === 'string' && icon.trim()) {
+    fields.push(`icon = $${i++}`);
+    values.push(icon.trim());
+  }
+  if (!fields.length) return res.status(400).json({ error: 'nothing to update' });
+  values.push(req.params.id);
+  const { rows } = await pool.query(
+    `UPDATE chore_kids SET ${fields.join(', ')} WHERE id = $${i} RETURNING id, name, icon, sort_order`,
+    values
+  );
+  if (!rows[0]) return res.status(404).json({ error: 'not found' });
+  res.json(rows[0]);
+});
+
+app.delete('/api/chores/kids/:id', requireDb, auth.requireEdit, async (req, res) => {
+  await pool.query('DELETE FROM chore_kids WHERE id = $1', [req.params.id]);
+  res.status(204).end();
+});
+
+app.post('/api/chores/kids/:id/tasks', requireDb, auth.requireEdit, async (req, res) => {
+  const text = (req.body?.text || '').trim();
+  if (!text) return res.status(400).json({ error: 'text is required' });
+  const { rows: maxRows } = await pool.query(
+    'SELECT COALESCE(MAX(sort_order), 0) AS max FROM chore_tasks WHERE chore_kid_id = $1',
+    [req.params.id]
+  );
+  const { rows } = await pool.query(
+    'INSERT INTO chore_tasks (chore_kid_id, text, sort_order) VALUES ($1, $2, $3) RETURNING id, text, sort_order',
+    [req.params.id, text, maxRows[0].max + 1]
+  );
+  res.status(201).json({ ...rows[0], doneToday: false });
+});
+
+app.delete('/api/chores/tasks/:id', requireDb, auth.requireEdit, async (req, res) => {
+  await pool.query('DELETE FROM chore_tasks WHERE id = $1', [req.params.id]);
+  res.status(204).end();
+});
+
+app.patch('/api/chores/tasks/:id/toggle', requireDb, async (req, res) => {
+  const { done } = req.body || {};
+  if (done) {
+    await pool.query(
+      `INSERT INTO chore_completions (task_id, completed_date) VALUES ($1, CURRENT_DATE)
+       ON CONFLICT DO NOTHING`,
+      [req.params.id]
+    );
+  } else {
+    await pool.query('DELETE FROM chore_completions WHERE task_id = $1 AND completed_date = CURRENT_DATE', [
+      req.params.id,
+    ]);
+  }
+  res.json({ ok: true, doneToday: Boolean(done) });
+});
+
+// ---- Photos ----
+const MAX_PHOTO_DATA_URL_LENGTH = 1_200_000; // ~900KB raw image, plenty for a dashboard slideshow
+const MAX_PHOTOS_PER_SECTION = 24;
+
+app.post('/api/sections/:id/photos', requireDb, auth.requireEdit, async (req, res) => {
+  const imageDataUrl = req.body?.image_data_url;
+  if (typeof imageDataUrl !== 'string' || !imageDataUrl.startsWith('data:image/')) {
+    return res.status(400).json({ error: 'image_data_url must be a data:image/... URL' });
+  }
+  if (imageDataUrl.length > MAX_PHOTO_DATA_URL_LENGTH) {
+    return res.status(400).json({ error: 'Photo is too large — please use a smaller image.' });
+  }
+  const { rows: countRows } = await pool.query('SELECT COUNT(*)::int AS count FROM photos WHERE section_id = $1', [
+    req.params.id,
+  ]);
+  if (countRows[0].count >= MAX_PHOTOS_PER_SECTION) {
+    return res.status(400).json({ error: `This section already has the maximum of ${MAX_PHOTOS_PER_SECTION} photos.` });
+  }
+  const { rows: maxRows } = await pool.query(
+    'SELECT COALESCE(MAX(sort_order), 0) AS max FROM photos WHERE section_id = $1',
+    [req.params.id]
+  );
+  const { rows } = await pool.query(
+    'INSERT INTO photos (section_id, image_data_url, sort_order) VALUES ($1, $2, $3) RETURNING id, image_data_url, sort_order',
+    [req.params.id, imageDataUrl, maxRows[0].max + 1]
+  );
+  res.status(201).json(rows[0]);
+});
+
+app.delete('/api/photos/:id', requireDb, auth.requireEdit, async (req, res) => {
+  await pool.query('DELETE FROM photos WHERE id = $1', [req.params.id]);
+  res.status(204).end();
+});
+
+// ---- Calendar ----
+const calendarCache = new Map(); // section id -> { data, fetchedAt }
+
+app.patch('/api/sections/:id/calendar', requireDb, auth.requireEdit, async (req, res) => {
+  const icsUrl = (req.body?.ics_url || '').trim();
+  const { rows } = await pool.query(
+    `INSERT INTO calendar_config (section_id, ics_url) VALUES ($1, $2)
+     ON CONFLICT (section_id) DO UPDATE SET ics_url = EXCLUDED.ics_url
+     RETURNING ics_url`,
+    [req.params.id, icsUrl || null]
+  );
+  calendarCache.delete(req.params.id);
+  res.json(rows[0]);
+});
+
+app.get('/api/sections/:id/calendar/events', requireDb, async (req, res) => {
+  const { rows } = await pool.query('SELECT ics_url FROM calendar_config WHERE section_id = $1', [req.params.id]);
+  const icsUrl = rows[0]?.ics_url;
+  if (!icsUrl) return res.json({ configured: false, events: [] });
+
+  const now = Date.now();
+  const cached = calendarCache.get(req.params.id);
+  if (cached && now - cached.fetchedAt < 15 * 60 * 1000) {
+    return res.json({ configured: true, events: cached.data });
+  }
+  try {
+    const events = await getCalendarEvents(icsUrl);
+    calendarCache.set(req.params.id, { data: events, fetchedAt: now });
+    res.json({ configured: true, events });
+  } catch (err) {
+    console.error('Calendar fetch failed:', err.message);
+    res.status(502).json({ error: 'Could not read that calendar feed right now.' });
+  }
 });
 
 app.get('/api/health', (req, res) => {

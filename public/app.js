@@ -9,7 +9,12 @@ const state = {
   editMode: false,
   loadHistory: [],
   lastStatsSampleAt: 0,
+  kioskMode: false,
+  kioskIndex: 0,
 };
+
+let kioskTimer = null;
+let dragState = null; // { id, startIndex } while a section drag is in progress
 
 const THEMES = ['neon', 'sunset', 'ocean', 'forest'];
 
@@ -22,6 +27,9 @@ const SECTION_ICON_NAMES = {
   notes: 'message-square',
   countdown: 'hourglass',
   stocks: 'trending-up',
+  chores: 'list-checks',
+  photos: 'image',
+  calendar: 'calendar',
 };
 
 const SECTION_TYPE_LABELS = {
@@ -33,7 +41,15 @@ const SECTION_TYPE_LABELS = {
   notes: 'Notes',
   countdown: 'Countdown',
   stocks: 'Stocks',
+  chores: 'Chores',
+  photos: 'Photos',
+  calendar: 'Calendar',
 };
+
+// Sections a viewer can drag-reorder are tracked by id; ACCENT_COLOR_OPTIONS
+// are the swatches offered in the per-section accent picker (kept in step
+// with the app's own theme accent hues so it feels like one system).
+const ACCENT_COLOR_OPTIONS = ['#22e8ff', '#ff3ec9', '#84cc16', '#f97316', '#a855f7', '#06b6d4', '#facc15', '#f43f5e'];
 
 // ---- Helpers ----
 function escapeHtml(str) {
@@ -272,22 +288,146 @@ async function loadAllStocks() {
   );
 }
 
+// ---- Calendar (fetched separately per section, filled into slots) ----
+function formatEventTime(iso, allDay) {
+  const d = new Date(iso);
+  const dayLabel = d.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' });
+  if (allDay) return dayLabel;
+  const timeLabel = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return `${dayLabel} · ${timeLabel}`;
+}
+
+async function loadAllCalendars() {
+  const slots = document.querySelectorAll('[data-calendar-slot]');
+  if (!slots.length) return;
+  await Promise.all(
+    Array.from(slots).map(async (el) => {
+      const sectionId = el.dataset.sectionId;
+      try {
+        const res = await api(`/api/sections/${sectionId}/calendar/events`);
+        if (!res.configured) {
+          el.innerHTML = `<p class="muted">No calendar linked yet.</p>`;
+          return;
+        }
+        if (!res.events.length) {
+          el.innerHTML = `<p class="muted">No upcoming events.</p>`;
+          return;
+        }
+        el.innerHTML = res.events
+          .map(
+            (ev) => `
+          <div class="calendar-event">
+            <div class="calendar-event-summary">${escapeHtml(ev.summary)}${ev.recurring ? ' <span class="muted small" style="margin:0;">(recurring)</span>' : ''}</div>
+            <div class="calendar-event-time mono">${formatEventTime(ev.start, ev.allDay)}${ev.location ? ' · ' + escapeHtml(ev.location) : ''}</div>
+          </div>`
+          )
+          .join('');
+      } catch (err) {
+        el.innerHTML = `<p class="error-text">Couldn't load that calendar right now.</p>`;
+      }
+    })
+  );
+}
+
+// ---- Photo slideshow (client-side rotation through already-loaded images) ----
+// Every render() rebuilds the DOM, orphaning any slideshow <img> a previous
+// interval still targets — track timers in a plain array and clear all of
+// them up front so they don't pile up forever on a long-running kiosk.
+let photoSlideshowTimers = [];
+
+function loadAllPhotoSlideshows() {
+  photoSlideshowTimers.forEach(clearInterval);
+  photoSlideshowTimers = [];
+
+  const slots = document.querySelectorAll('[data-photo-slot]');
+  slots.forEach((el) => {
+    const urls = (el.dataset.photos || '').split('|||').filter(Boolean);
+    if (!urls.length) return;
+    let index = 0;
+    const img = el.querySelector('img');
+    img.src = urls[0];
+    if (urls.length > 1) {
+      const timer = setInterval(() => {
+        index = (index + 1) % urls.length;
+        img.style.opacity = '0';
+        setTimeout(() => {
+          img.src = urls[index];
+          img.style.opacity = '1';
+        }, 300);
+      }, 6000);
+      photoSlideshowTimers.push(timer);
+    }
+  });
+}
+
+const MAX_PHOTO_FILE_BYTES = 900_000;
+
+async function uploadPhotos(sectionId, fileList) {
+  const files = Array.from(fileList || []);
+  if (!files.length) return;
+  for (const file of files) {
+    if (!file.type.startsWith('image/')) continue;
+    if (file.size > MAX_PHOTO_FILE_BYTES) {
+      alert(`"${file.name}" is too large — please use images under 900KB.`);
+      continue;
+    }
+    const dataUrl = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+    try {
+      await api(`/api/sections/${sectionId}/photos`, {
+        method: 'POST',
+        body: JSON.stringify({ image_data_url: dataUrl }),
+      });
+    } catch (err) {
+      if (err.message !== 'unauthorized') alert(err.message);
+      break;
+    }
+  }
+  await loadDashboard();
+}
+
 // ---- Render ----
 function render() {
   applyTheme();
+  applyBackground();
   renderHeader();
-  renderDashboard();
+  if (state.kioskMode) {
+    renderKiosk();
+  } else {
+    renderDashboard();
+  }
   // Rebuilding the dashboard DOM (every render — not just after a fresh
-  // fetch) replaces any already-filled weather/stats/stocks slots with
-  // their "Loading…" placeholders, so refill them every time.
+  // fetch) replaces any already-filled weather/stats/stocks/calendar slots
+  // with their "Loading…" placeholders, so refill them every time.
   loadAllWeather();
   loadAllStats();
   loadAllStocks();
+  loadAllCalendars();
+  loadAllPhotoSlideshows();
 }
 
 function applyTheme() {
   const theme = THEMES.includes(state.settings.theme) ? state.settings.theme : 'neon';
   document.documentElement.setAttribute('data-theme', theme);
+}
+
+function applyBackground() {
+  const url = state.settings.background_data_url;
+  if (url) {
+    document.body.style.backgroundImage = `linear-gradient(rgba(0,0,0,0.35), rgba(0,0,0,0.35)), url(${url})`;
+    document.body.style.backgroundSize = 'cover';
+    document.body.style.backgroundPosition = 'center';
+    document.body.style.backgroundAttachment = 'fixed';
+  } else {
+    document.body.style.backgroundImage = '';
+    document.body.style.backgroundSize = '';
+    document.body.style.backgroundPosition = '';
+    document.body.style.backgroundAttachment = '';
+  }
 }
 
 function renderHeader() {
@@ -308,10 +448,12 @@ function renderHeader() {
   document.getElementById('edit-toggle-icon').innerHTML = svgIcon(state.editMode ? 'square-check' : 'settings', 16);
   document.getElementById('edit-toggle-label').textContent = state.editMode ? 'Done' : 'Customize';
   document.getElementById('edit-toggle').classList.toggle('active', state.editMode);
+  document.getElementById('kiosk-toggle-icon').innerHTML = svgIcon('monitor', 16);
 }
 
 function renderDashboard() {
   const root = document.getElementById('dashboard');
+  root.classList.remove('kiosk-active');
   const visible = state.sections.filter((s) => s.enabled || state.editMode);
 
   let html = '';
@@ -325,6 +467,49 @@ function renderDashboard() {
 
   root.innerHTML = html;
 }
+
+// ---- Kiosk mode: auto-cycling fullscreen view for a wall-mounted tablet ----
+function renderKiosk() {
+  const root = document.getElementById('dashboard');
+  root.classList.add('kiosk-active');
+  const enabled = state.sections.filter((s) => s.enabled);
+  if (!enabled.length) {
+    root.innerHTML = `<p class="muted">Nothing enabled to show in kiosk mode.</p>`;
+    return;
+  }
+  if (state.kioskIndex >= enabled.length) state.kioskIndex = 0;
+  const section = enabled[state.kioskIndex];
+  root.innerHTML = `
+    <button type="button" class="kiosk-exit" data-action="exit-kiosk" title="Exit kiosk mode">${svgIcon('x', 16)}</button>
+    <div class="kiosk-view">${renderSection(section)}</div>
+  `;
+}
+
+function enterKiosk() {
+  state.kioskMode = true;
+  state.kioskIndex = 0;
+  document.body.classList.add('kiosk-mode');
+  if (kioskTimer) clearInterval(kioskTimer);
+  kioskTimer = setInterval(() => {
+    const enabledCount = state.sections.filter((s) => s.enabled).length;
+    if (!enabledCount) return;
+    state.kioskIndex = (state.kioskIndex + 1) % enabledCount;
+    render();
+  }, 12000);
+  render();
+}
+
+function exitKiosk() {
+  state.kioskMode = false;
+  document.body.classList.remove('kiosk-mode');
+  if (kioskTimer) {
+    clearInterval(kioskTimer);
+    kioskTimer = null;
+  }
+  render();
+}
+
+document.getElementById('kiosk-toggle').addEventListener('click', enterKiosk);
 
 function renderSettingsCard() {
   const s = state.settings;
@@ -350,6 +535,20 @@ function renderSettingsCard() {
           ${THEMES.map(
             (theme) => `<button type="button" class="theme-swatch ${theme === currentTheme ? 'selected' : ''}" data-action="set-theme" data-theme-value="${theme}" title="${theme[0].toUpperCase() + theme.slice(1)}"><span class="theme-swatch-fill theme-swatch-${theme}"></span></button>`
           ).join('')}
+        </div>
+      </div>
+      <div>
+        <div class="settings-group-label">Background image</div>
+        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+          <button type="button" class="btn-secondary" data-action="upload-background">${svgIcon('image', 14)} ${s.background_data_url ? 'Change' : 'Upload'}</button>
+          ${s.background_data_url ? `<button type="button" class="btn-secondary" data-action="remove-background">${svgIcon('x', 14)} Remove</button>` : ''}
+        </div>
+      </div>
+      <div>
+        <div class="settings-group-label">Backup</div>
+        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+          <button type="button" class="btn-secondary" data-action="download-backup">${svgIcon('download', 14)} Download</button>
+          <button type="button" class="btn-secondary" data-action="restore-backup">${svgIcon('upload', 14)} Restore…</button>
         </div>
       </div>
     </div>
@@ -397,18 +596,28 @@ function renderAddSectionBar() {
 function renderSection(section) {
   const hiddenClass = !section.enabled ? 'section-hidden' : '';
   const icon = svgIcon(SECTION_ICON_NAMES[section.type] || '', 18);
-  const header = state.editMode
-    ? `
+  const accentSwatches = ACCENT_COLOR_OPTIONS.map(
+    (c) =>
+      `<button type="button" class="accent-swatch ${section.accent_color === c ? 'selected' : ''}" data-action="set-section-accent" data-color="${c}" style="background:${c};" title="${c}"></button>`
+  ).join('');
+  const header =
+    state.editMode && !state.kioskMode
+      ? `
     <div class="section-header">
+      <button type="button" class="drag-handle" data-action="drag-handle" title="Drag to reorder">${svgIcon('grip-vertical', 15)}</button>
       <input class="section-title-input" data-action="rename-section" value="${escapeAttr(section.title)}" />
       <div class="section-controls">
+        <div class="accent-picker">
+          ${accentSwatches}
+          ${section.accent_color ? `<button type="button" class="icon-btn" data-action="reset-section-accent" title="Reset to theme accent">${svgIcon('rotate-ccw', 13)}</button>` : ''}
+        </div>
         <button type="button" class="icon-btn" data-action="move-up" title="Move up">${svgIcon('arrow-up', 13)}</button>
         <button type="button" class="icon-btn" data-action="move-down" title="Move down">${svgIcon('arrow-down', 13)}</button>
         <button type="button" class="icon-btn" data-action="toggle-enabled" title="${section.enabled ? 'Hide' : 'Show'}">${svgIcon(section.enabled ? 'eye' : 'eye-off', 13)}</button>
         <button type="button" class="icon-btn danger" data-action="delete-section" title="Delete section">${svgIcon('trash', 13)}</button>
       </div>
     </div>`
-    : `<div class="section-header"><div class="section-header-title">${icon}<h2>${escapeHtml(section.title)}</h2></div></div>`;
+      : `<div class="section-header"><div class="section-header-title">${icon}<h2>${escapeHtml(section.title)}</h2></div></div>`;
 
   let body = '';
   if (section.type === 'weather') body = renderWeatherBody();
@@ -419,8 +628,12 @@ function renderSection(section) {
   else if (section.type === 'notes') body = renderNotesBody(section);
   else if (section.type === 'countdown') body = renderCountdownBody(section);
   else if (section.type === 'stocks') body = renderStocksBody(section);
+  else if (section.type === 'chores') body = renderChoresBody(section);
+  else if (section.type === 'photos') body = renderPhotosBody(section);
+  else if (section.type === 'calendar') body = renderCalendarBody(section);
 
-  return `<section class="card section ${hiddenClass}" data-section-id="${section.id}" data-type="${section.type}">
+  const accentStyle = section.accent_color ? ` style="--accent:${escapeAttr(section.accent_color)};"` : '';
+  return `<section class="card section ${hiddenClass}" data-section-id="${section.id}" data-type="${section.type}"${accentStyle}>
     ${header}
     <div class="section-body">${body}</div>
   </section>`;
@@ -638,6 +851,110 @@ function renderCountdownBody(section) {
   return view + editRow;
 }
 
+function renderChoresBody(section) {
+  const kids = section.kids || [];
+
+  const kidBlocks = kids
+    .map((kid) => {
+      const tasks = kid.tasks || [];
+      const doneCount = tasks.filter((t) => t.doneToday).length;
+      const taskRows = tasks
+        .map(
+          (task) => `
+        <li class="${task.doneToday ? 'done' : ''}" data-task-id="${task.id}">
+          <input type="checkbox" ${task.doneToday ? 'checked' : ''} data-action="toggle-chore-task" />
+          <span class="item-text">${escapeHtml(task.text)}</span>
+          ${state.editMode ? `<button type="button" class="item-delete" data-action="delete-chore-task">${svgIcon('x', 13)}</button>` : ''}
+        </li>`
+        )
+        .join('');
+
+      return `
+      <div class="chore-kid-block" data-kid-id="${kid.id}">
+        <div class="chore-kid-header">
+          ${
+            state.editMode
+              ? `<button type="button" class="icon-pick-btn" data-action="pick-icon" data-role="chore-kid-existing" title="Change avatar">${renderIcon(kid.icon, 18)}</button>`
+              : `<span class="kid-emoji" style="width:30px; height:30px;">${renderIcon(kid.icon, 16)}</span>`
+          }
+          <span class="chore-kid-name">${escapeHtml(kid.name)}</span>
+          <span class="chore-kid-progress mono">${doneCount}/${tasks.length}</span>
+          ${state.editMode ? `<button type="button" class="item-delete" data-action="delete-chore-kid">${svgIcon('x', 13)}</button>` : ''}
+        </div>
+        <ul class="today-list">${taskRows || `<li class="muted" style="background:none; border:none; padding:4px 0;">No chores yet.</li>`}</ul>
+        ${
+          state.editMode
+            ? `<form class="add-chore-task-form" data-action="add-chore-task">
+                <input type="text" name="text" placeholder="Add a chore…" autocomplete="off" required />
+                <button type="submit">Add</button>
+              </form>`
+            : ''
+        }
+      </div>`;
+    })
+    .join('');
+
+  const addKidForm = state.editMode
+    ? `
+    <form class="add-kid-form" data-action="add-chore-kid">
+      <button type="button" class="icon-pick-btn" data-action="pick-icon" data-role="chore-kid-new" title="Choose avatar">${svgIcon(DEFAULT_AVATAR_ICON, 20)}</button>
+      <input type="hidden" name="icon" value="${DEFAULT_AVATAR_ICON}" data-role="icon-hidden" />
+      <input name="name" placeholder="Name" required />
+      <button type="submit">+ Add kid</button>
+    </form>`
+    : '';
+
+  const emptyMsg = !kids.length && !state.editMode ? `<p class="muted">No one set up yet.</p>` : '';
+
+  return `<div class="chores-list">${kidBlocks}</div>${emptyMsg}${addKidForm}`;
+}
+
+function renderPhotosBody(section) {
+  const photos = section.photos || [];
+
+  if (state.editMode) {
+    const thumbs = photos
+      .map(
+        (p) => `
+      <div class="photo-thumb" data-photo-id="${p.id}">
+        <img src="${escapeAttr(p.image_data_url)}" alt="" />
+        <button type="button" class="item-delete photo-thumb-delete" data-action="delete-photo">${svgIcon('x', 13)}</button>
+      </div>`
+      )
+      .join('');
+
+    return `
+      <div class="photos-thumb-grid">${thumbs || `<p class="muted">No photos yet.</p>`}</div>
+      <button type="button" class="btn-secondary" data-action="upload-photo" style="margin-top:12px;">${svgIcon('upload', 14)} Upload photo</button>
+      <p class="stat-note">Up to 24 photos, ~900KB each.</p>`;
+  }
+
+  if (!photos.length) {
+    return `<p class="muted">No photos yet — add some in Customize mode.</p>`;
+  }
+
+  const slidesAttr = escapeAttr(photos.map((p) => p.image_data_url).join('|||'));
+  return `<div class="photo-slideshow" data-photo-slot data-photos="${slidesAttr}"><img alt="" /></div>`;
+}
+
+function renderCalendarBody(section) {
+  const cal = section.calendar || { ics_url: null };
+
+  const editRow = state.editMode
+    ? `
+    <form class="calendar-edit-row" data-action="save-calendar">
+      <input type="url" name="ics_url" placeholder="https://…/calendar.ics" value="${escapeAttr(cal.ics_url || '')}" />
+      <button type="submit" class="btn-primary">Save</button>
+    </form>`
+    : '';
+
+  if (!cal.ics_url) {
+    return `<p class="muted">${state.editMode ? 'Paste a public .ics calendar link below.' : 'No calendar linked yet.'}</p>${editRow}`;
+  }
+
+  return `<div class="calendar-list" data-calendar-slot data-section-id="${section.id}"><p class="muted">Loading…</p></div>${editRow}`;
+}
+
 // ---- Edit mode toggle & PIN flow ----
 function openPinModal() {
   const modal = document.getElementById('pin-modal');
@@ -751,12 +1068,114 @@ document.getElementById('logo-input').addEventListener('change', async (e) => {
   reader.readAsDataURL(file);
 });
 
+// ---- Background image upload ----
+const MAX_BACKGROUND_FILE_BYTES = 1_800_000;
+
+document.getElementById('background-input').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if (!file) return;
+  if (!file.type.startsWith('image/')) {
+    alert('Please choose an image file.');
+    return;
+  }
+  if (file.size > MAX_BACKGROUND_FILE_BYTES) {
+    alert('That image is too large — please use one under 1.8MB.');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = async () => {
+    try {
+      await api('/api/settings', { method: 'PATCH', body: JSON.stringify({ background_data_url: reader.result }) });
+      await loadDashboard();
+    } catch (err) {
+      if (err.message !== 'unauthorized') alert(err.message);
+    }
+  };
+  reader.readAsDataURL(file);
+});
+
+// ---- Backup / restore ----
+document.getElementById('backup-restore-input').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if (!file) return;
+  if (!confirm('Restoring will replace everything on this dashboard with the contents of this backup file. Continue?')) {
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = async () => {
+    try {
+      await api('/api/backup', { method: 'POST', body: JSON.stringify({ yaml: reader.result }) });
+      await loadDashboard();
+    } catch (err) {
+      if (err.message !== 'unauthorized') alert(err.message);
+    }
+  };
+  reader.readAsText(file);
+});
+
 // ---- Event delegation for the dashboard ----
 const dashboard = document.getElementById('dashboard');
 
 function sectionIdOf(el) {
   return el.closest('[data-section-id]')?.dataset.sectionId;
 }
+
+// ---- Section drag-and-drop reordering ----
+// Pointer Events (not native HTML5 drag-and-drop) so this works uniformly
+// with mouse, touch and pen — plain HTML5 DnD is unreliable on iPad, which
+// this dashboard is explicitly meant to run well on.
+document.addEventListener('pointerdown', (e) => {
+  const handle = e.target.closest('.drag-handle');
+  if (!handle) return;
+  const card = handle.closest('.section');
+  if (!card) return;
+  e.preventDefault();
+
+  dragState = { card, order: Array.from(dashboard.querySelectorAll('.section')).map((c) => Number(c.dataset.sectionId)) };
+  card.classList.add('dragging');
+
+  const onMove = (ev) => {
+    if (!dragState) return;
+    const y = ev.clientY;
+    const siblings = Array.from(dashboard.querySelectorAll('.section')).filter((c) => c !== dragState.card);
+    let target = null;
+    for (const sib of siblings) {
+      const rect = sib.getBoundingClientRect();
+      if (y < rect.top + rect.height / 2) {
+        target = sib;
+        break;
+      }
+    }
+    if (target) {
+      dashboard.insertBefore(dragState.card, target);
+    } else {
+      const addBar = dashboard.querySelector('.add-section-card');
+      if (addBar) dashboard.insertBefore(dragState.card, addBar);
+      else dashboard.appendChild(dragState.card);
+    }
+    dragState.order = Array.from(dashboard.querySelectorAll('.section')).map((c) => Number(c.dataset.sectionId));
+  };
+
+  const onUp = async () => {
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerup', onUp);
+    if (!dragState) return;
+    const order = dragState.order;
+    dragState.card.classList.remove('dragging');
+    dragState = null;
+    try {
+      await api('/api/sections/reorder', { method: 'POST', body: JSON.stringify({ order }) });
+      await loadDashboard();
+    } catch (err) {
+      if (err.message !== 'unauthorized') console.error(err);
+    }
+  };
+
+  document.addEventListener('pointermove', onMove);
+  document.addEventListener('pointerup', onUp);
+});
 
 dashboard.addEventListener('click', async (e) => {
   const target = e.target.closest('[data-action]');
@@ -777,9 +1196,49 @@ dashboard.addEventListener('click', async (e) => {
       return;
     }
 
+    if (action === 'upload-background') {
+      document.getElementById('background-input').click();
+      return;
+    }
+
+    if (action === 'remove-background') {
+      await api('/api/settings', { method: 'PATCH', body: JSON.stringify({ background_data_url: null }) });
+      await loadDashboard();
+      return;
+    }
+
+    if (action === 'download-backup') {
+      window.location.href = '/api/backup';
+      return;
+    }
+
+    if (action === 'restore-backup') {
+      document.getElementById('backup-restore-input').click();
+      return;
+    }
+
+    if (action === 'exit-kiosk') {
+      exitKiosk();
+      return;
+    }
+
     if (action === 'set-theme') {
       const theme = target.dataset.themeValue;
       await api('/api/settings', { method: 'PATCH', body: JSON.stringify({ theme }) });
+      await loadDashboard();
+      return;
+    }
+
+    if (action === 'set-section-accent') {
+      const id = sectionIdOf(target);
+      await api(`/api/sections/${id}`, { method: 'PATCH', body: JSON.stringify({ accent_color: target.dataset.color }) });
+      await loadDashboard();
+      return;
+    }
+
+    if (action === 'reset-section-accent') {
+      const id = sectionIdOf(target);
+      await api(`/api/sections/${id}`, { method: 'PATCH', body: JSON.stringify({ accent_color: null }) });
       await loadDashboard();
       return;
     }
@@ -813,6 +1272,21 @@ dashboard.addEventListener('click', async (e) => {
           }
         });
       } else if (role === 'kid-new') {
+        openIconPicker((name) => {
+          target.innerHTML = svgIcon(name, 20);
+          target.nextElementSibling.value = name;
+        });
+      } else if (role === 'chore-kid-existing') {
+        const kidId = target.closest('[data-kid-id]').dataset.kidId;
+        openIconPicker(async (name) => {
+          try {
+            await api(`/api/chores/kids/${kidId}`, { method: 'PATCH', body: JSON.stringify({ icon: name }) });
+            await loadDashboard();
+          } catch (err) {
+            if (err.message !== 'unauthorized') alert(err.message);
+          }
+        });
+      } else if (role === 'chore-kid-new') {
         openIconPicker((name) => {
           target.innerHTML = svgIcon(name, 20);
           target.nextElementSibling.value = name;
@@ -884,6 +1358,38 @@ dashboard.addEventListener('click', async (e) => {
       return;
     }
 
+    if (action === 'delete-chore-kid') {
+      const id = target.closest('[data-kid-id]').dataset.kidId;
+      await api(`/api/chores/kids/${id}`, { method: 'DELETE' });
+      await loadDashboard();
+      return;
+    }
+
+    if (action === 'delete-chore-task') {
+      const id = target.closest('[data-task-id]').dataset.taskId;
+      await api(`/api/chores/tasks/${id}`, { method: 'DELETE' });
+      await loadDashboard();
+      return;
+    }
+
+    if (action === 'upload-photo') {
+      const id = sectionIdOf(target);
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.multiple = true;
+      input.addEventListener('change', () => uploadPhotos(id, input.files));
+      input.click();
+      return;
+    }
+
+    if (action === 'delete-photo') {
+      const id = target.closest('[data-photo-id]').dataset.photoId;
+      await api(`/api/photos/${id}`, { method: 'DELETE' });
+      await loadDashboard();
+      return;
+    }
+
     if (action === 'plus' || action === 'minus') {
       const id = target.closest('[data-kid-id]').dataset.kidId;
       const delta = action === 'plus' ? 1 : -1;
@@ -924,6 +1430,13 @@ dashboard.addEventListener('change', async (e) => {
       const kidId = e.target.closest('[data-kid-id]').dataset.kidId;
       const field = e.target.dataset.field;
       await api(`/api/leaderboard/${kidId}`, { method: 'PATCH', body: JSON.stringify({ [field]: e.target.value }) });
+      return;
+    }
+
+    if (e.target.dataset.action === 'toggle-chore-task') {
+      const id = e.target.closest('[data-task-id]').dataset.taskId;
+      await api(`/api/chores/tasks/${id}/toggle`, { method: 'PATCH', body: JSON.stringify({ done: e.target.checked }) });
+      await loadDashboard();
       return;
     }
   } catch (err) {
@@ -970,6 +1483,27 @@ dashboard.addEventListener('submit', async (e) => {
     if (action === 'add-stock') {
       const id = sectionIdOf(form);
       await api(`/api/sections/${id}/stocks`, { method: 'POST', body: JSON.stringify(data) });
+      await loadDashboard();
+      return;
+    }
+
+    if (action === 'add-chore-kid') {
+      const id = sectionIdOf(form);
+      await api(`/api/sections/${id}/chores/kids`, { method: 'POST', body: JSON.stringify(data) });
+      await loadDashboard();
+      return;
+    }
+
+    if (action === 'add-chore-task') {
+      const kidId = form.closest('[data-kid-id]').dataset.kidId;
+      await api(`/api/chores/kids/${kidId}/tasks`, { method: 'POST', body: JSON.stringify(data) });
+      await loadDashboard();
+      return;
+    }
+
+    if (action === 'save-calendar') {
+      const id = sectionIdOf(form);
+      await api(`/api/sections/${id}/calendar`, { method: 'PATCH', body: JSON.stringify(data) });
       await loadDashboard();
       return;
     }

@@ -1,22 +1,38 @@
 # IntraHub
 
-A self-hosted, family-friendly home dashboard: weather, server stats, a
-customisable to-do/brief list, a customisable grid of quick links, a family
-notes board, event countdowns, and a points leaderboard — all fully editable
-from the page itself, no rebuild required. Choose from four built-in themes
-(Neon Night, Sunset Warm, Ocean Depths, Forest Glow) and upload your own
-logo. Responsive for laptop, tablet and phone. Runs in a single Docker
-container and stores its data in your own Postgres database.
+A self-hosted, family-friendly home dashboard: weather, server stats,
+stocks, a customisable to-do list, links, notes board, countdown, points
+leaderboard, per-kid chores tracker, a photo slideshow and a calendar feed
+— all fully editable from the page itself, no rebuild required, with
+drag-and-drop reordering and a per-section accent color. Choose from four
+built-in themes (Neon Night, Sunset Warm, Ocean Depths, Forest Glow), upload
+your own logo and background image, back up and restore the whole dashboard
+as a YAML file, and switch to a fullscreen auto-cycling kiosk view for a
+wall-mounted tablet. Responsive for laptop, tablet and phone. Runs in a
+single Docker container and stores its data in your own Postgres database.
 
 Licensed under [AGPL-3.0-or-later](LICENSE).
 
 ## Features
 
-- **Customisable sections** — add, remove, rename, hide, and reorder as many
-  Weather / Server Stats / Stocks / To-do / Links / Notes / Countdown /
-  Leaderboard sections as you like, straight from the dashboard.
+- **Customisable sections** — add, remove, rename, drag-and-drop reorder,
+  hide, or give a custom accent color to any number of Weather / Server
+  Stats / Stocks / To-do / Links / Notes / Countdown / Leaderboard / Chores
+  / Photos / Calendar sections, straight from the dashboard.
 - **Stocks** — a small watchlist card with live price and today's move per
   ticker (see [Stocks](#stocks) below for the free API key it needs).
+- **Chores** — a per-kid checklist that resets itself every day (no cron
+  job — "done" just means completed *today*), a structured sibling to the
+  freeform to-do list.
+- **Photos** — a rotating slideshow of uploaded family photos.
+- **Calendar** — upcoming events from any public `.ics` feed (see
+  [Calendar](#calendar) below for what it does and doesn't parse).
+- **Kiosk mode** — a fullscreen, auto-cycling, chrome-free view built for a
+  wall-mounted tablet — tap the monitor icon in the header, tap the × to
+  exit.
+- **Backup & restore** — download the whole dashboard as a YAML file from
+  the Settings card, and restore it (or a fresh clone's `config/local.yml`
+  seed, in the same format) from there too.
 - **Customisable links** — each Links section is its own grid of icon +
   label + URL tiles you add, edit and remove inline, picking each icon from
   a built-in picker (no emoji — see [Icons](#icons)).
@@ -28,8 +44,9 @@ Licensed under [AGPL-3.0-or-later](LICENSE).
 - **Countdown** — a days-to-go counter for a birthday, holiday or event.
 - **Points leaderboard** — a lightweight, editable scoreboard (name, emoji,
   points) for whatever game or reward system you're running at home.
-- **Themes + logo** — pick from four built-in color themes and upload your
-  own logo image, both from the Settings card.
+- **Themes + logo + background** — pick from four built-in color themes and
+  upload your own logo and page background image, all from the Settings
+  card.
 - **No login by default** — designed for a trusted home network. Optionally
   protect the edit/customize mode with a PIN (`ADMIN_PIN`) — the dashboard
   itself stays open to everyone either way.
@@ -106,21 +123,30 @@ Environment variables (`.env`, see `.env.example`):
 | `ADMIN_PIN` | Optional PIN required to enter Customize/edit mode. Leave blank for no protection. |
 | `SOURCE_URL` | Link shown in the footer — point it at your fork if you modify the code (see [License](#license)) |
 | `CONFIG_PATH` | Override which YAML file seeds a fresh install (defaults to `config/local.yml` then `config/default.yml`) |
+| `FINNHUB_API_KEY` | Optional free key that enables the Stocks card's live quotes (see [Stocks](#stocks)) |
 
 ## Editing the dashboard
 
 Click **Customize** in the header (enter the PIN if you set one).
 While in edit mode you can:
 
-- Rename, reorder, hide, or delete any section
+- Rename, drag-and-drop reorder (grab the grip handle), hide, delete, or
+  set a custom accent color for any section
 - Add a new section (pick a type and a title, bottom of the page)
-- Add/edit/delete links within a Links section
+- Add/edit/delete links within a Links section, picking each icon from the
+  built-in picker
 - Add/edit/delete entries within a Leaderboard section
-- Edit the dashboard title and weather location in the Settings card
+- Add/remove kids and their chores within a Chores section
+- Upload/delete photos within a Photos section
+- Set the feed URL for a Calendar section
+- Edit the dashboard title, weather location, theme, logo and background
+  image in the Settings card
+- Download or restore a full backup from the Settings card
 
-Day-to-day interactions — ticking off a to-do item, adding one, posting a
-note, and adjusting leaderboard points with +/− — always stay open, even
-with a PIN set, since that's normal use rather than editing the layout.
+Day-to-day interactions — ticking off a to-do or chore item, adding a
+to-do/note, and adjusting leaderboard points with +/− — always stay open,
+even with a PIN set, since that's normal use rather than editing the
+layout.
 
 ## Icons
 
@@ -169,6 +195,18 @@ looking broken.
 unofficial endpoints were tried first but are currently bot-walled/rate-
 limited and too unreliable to build on — unlike weather, there's no good
 keyless option here right now.)
+
+## Calendar
+
+Paste a public `.ics` feed URL (e.g. a Google Calendar's "Secret address in
+iCal format" or its public calendar link) into a Calendar section in edit
+mode. The parser is deliberately scoped down: it reads plain, non-recurring
+events and shows the next ones sorted by start time. An event with an
+`RRULE` (a repeating event) is shown using its own first occurrence, labeled
+"(recurring)", rather than expanding every future instance — full RRULE
+expansion (weekly/monthly rules, exceptions, timezones) needs a real
+library and was out of scope for a first version. See
+[server/calendar.js](server/calendar.js).
 
 ## Publishing to Docker Hub
 

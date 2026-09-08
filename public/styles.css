@@ -1106,6 +1106,254 @@ body {
   color: var(--danger);
 }
 
+/* Drag-and-drop reordering */
+.drag-handle {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  border: 1px solid var(--card-border);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.section.dragging {
+  opacity: 0.5;
+}
+
+/* Per-section accent color picker */
+.accent-picker {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 4px;
+}
+
+.accent-swatch {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  padding: 0;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.accent-swatch.selected {
+  box-shadow: 0 0 0 2px var(--text);
+}
+
+/* Chores */
+.chores-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.chore-kid-block {
+  padding-bottom: 4px;
+}
+
+.chore-kid-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.chore-kid-name {
+  flex: 1;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.chore-kid-progress {
+  font-size: 0.85rem;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.add-chore-task-form {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.add-chore-task-form input {
+  flex: 1;
+  min-width: 90px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--card-border);
+  background: var(--row-bg);
+  color: var(--text);
+  font-size: 0.85rem;
+  font-family: 'Space Grotesk', sans-serif;
+}
+
+.add-chore-task-form button[type="submit"] {
+  padding: 9px 14px;
+  border: none;
+  border-radius: 10px;
+  background: var(--accent-faint);
+  color: var(--accent);
+  border: 1px solid var(--accent-border);
+  font-weight: 600;
+  font-size: 0.82rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+/* Photos */
+.photos-thumb-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 8px;
+}
+
+.photo-thumb {
+  position: relative;
+  border-radius: 10px;
+  overflow: hidden;
+  aspect-ratio: 1;
+  border: 1px solid var(--card-border);
+}
+
+.photo-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.photo-thumb-delete {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+}
+
+.photo-slideshow {
+  border-radius: 14px;
+  overflow: hidden;
+  aspect-ratio: 16 / 10;
+  background: var(--row-bg);
+}
+
+.photo-slideshow img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: opacity 0.3s ease;
+}
+
+/* Calendar */
+.calendar-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.calendar-event {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--row-bg);
+  border: 1px solid var(--row-border);
+}
+
+.calendar-event-summary {
+  font-weight: 600;
+  font-size: 0.92rem;
+  color: var(--text);
+}
+
+.calendar-event-time {
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.calendar-edit-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.calendar-edit-row input {
+  flex: 1;
+  min-width: 90px;
+  padding: 11px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--card-border);
+  background: var(--row-bg);
+  color: var(--text);
+  font-size: 0.9rem;
+  font-family: 'Space Grotesk', sans-serif;
+}
+
+/* Kiosk mode */
+#kiosk-toggle {
+  padding: 11px;
+}
+
+body.kiosk-mode .topbar {
+  display: none;
+}
+
+body.kiosk-mode .footer {
+  display: none;
+}
+
+.grid.kiosk-active {
+  display: block;
+  max-width: 720px;
+  margin: 40px auto;
+  padding: 0 24px;
+  position: relative;
+}
+
+.kiosk-view .card {
+  font-size: 1.15em;
+  padding: 32px;
+}
+
+.kiosk-view .section-header-title h2 {
+  font-size: 1.3rem;
+}
+
+.kiosk-exit {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--card-border);
+  background: var(--card-bg);
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
 @media (max-width: 640px) {
   .topbar {
     padding: 22px 18px 18px;
