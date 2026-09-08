@@ -13,8 +13,10 @@ Licensed under [AGPL-3.0-or-later](LICENSE).
 ## Features
 
 - **Customisable sections** — add, remove, rename, hide, and reorder as many
-  Weather / Server Stats / To-do / Links / Notes / Countdown / Leaderboard
-  sections as you like, straight from the dashboard.
+  Weather / Server Stats / Stocks / To-do / Links / Notes / Countdown /
+  Leaderboard sections as you like, straight from the dashboard.
+- **Stocks** — a small watchlist card with live price and today's move per
+  ticker (see [Stocks](#stocks) below for the free API key it needs).
 - **Customisable links** — each Links section is its own grid of icon +
   label + URL tiles you add, edit and remove inline, picking each icon from
   a built-in picker (no emoji — see [Icons](#icons)).
@@ -154,6 +156,19 @@ a native Linux server, which is the common case for a home server. If you'd
 rather not mount host paths at all, delete or comment out those two volume
 lines and the matching `HOST_PROC_PATH`/`HOST_FS_PATH` env vars — the card
 falls back to the container's own stats automatically.
+
+## Stocks
+
+Live quotes come from [Finnhub](https://finnhub.io) — free tier (60
+requests/min, no credit card). [Register for a key](https://finnhub.io/register)
+and set `FINNHUB_API_KEY` in `.env`. Without a key, the Stocks card shows a
+short message explaining how to add one instead of failing silently or
+looking broken.
+
+(Fully keyless stock APIs like Stooq's CSV export and Yahoo Finance's
+unofficial endpoints were tried first but are currently bot-walled/rate-
+limited and too unreliable to build on — unlike weather, there's no good
+keyless option here right now.)
 
 ## Publishing to Docker Hub
 

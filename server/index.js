@@ -5,11 +5,13 @@ import { pool, ensureSchema, getSettings, setSetting, isFreshInstall, seedFromCo
 import { loadSeedConfig } from './config.js';
 import * as auth from './auth.js';
 import { getServerStats } from './stats.js';
+import { getStockQuotes } from './stocks.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 8080;
 const SOURCE_URL = process.env.SOURCE_URL || 'https://github.com/mahansford/IntraHub';
+const FINNHUB_API_KEY = process.env.FINNHUB_API_KEY || '';
 
 // Bumped from the 100kb default so a small uploaded logo image (stored as a
 // base64 data URL in settings) fits in one PATCH /api/settings request.
@@ -138,6 +140,37 @@ app.get('/api/stats', requireDb, async (req, res) => {
   }
 });
 
+// ---- Stocks ----
+// Needs a free Finnhub API key (FINNHUB_API_KEY) — without one, this
+// responds with configured:false rather than an error, so the card can
+// show a friendly "add a key" message instead of looking broken.
+const stocksCache = new Map(); // symbols key -> { data, fetchedAt }
+app.get('/api/stocks', requireDb, async (req, res) => {
+  if (!FINNHUB_API_KEY) {
+    return res.json({ configured: false, quotes: [] });
+  }
+  const symbols = (req.query.symbols || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (!symbols.length) return res.json({ configured: true, quotes: [] });
+
+  const cacheKey = [...symbols].sort().join(',');
+  const now = Date.now();
+  const cached = stocksCache.get(cacheKey);
+  if (cached && now - cached.fetchedAt < 60_000) {
+    return res.json({ configured: true, quotes: cached.data });
+  }
+  try {
+    const quotes = await getStockQuotes(symbols, FINNHUB_API_KEY);
+    stocksCache.set(cacheKey, { data: quotes, fetchedAt: now });
+    res.json({ configured: true, quotes });
+  } catch (err) {
+    console.error('Stock quote fetch failed:', err.message);
+    res.status(502).json({ error: 'Could not fetch stock quotes right now.' });
+  }
+});
+
 // ---- Settings ----
 const PUBLIC_SETTING_KEYS = [
   'site_title',
@@ -208,6 +241,12 @@ app.get('/api/dashboard', requireDb, async (req, res) => {
       );
       const countdown = rows[0] || { label: 'Countdown', target_date: null };
       section.countdown = { ...countdown, target_date: toDateOnly(countdown.target_date) };
+    } else if (section.type === 'stocks') {
+      const { rows } = await pool.query(
+        'SELECT id, symbol, sort_order FROM stock_symbols WHERE section_id = $1 ORDER BY sort_order ASC, id ASC',
+        [section.id]
+      );
+      section.symbols = rows;
     }
   }
 
@@ -433,6 +472,26 @@ app.patch('/api/leaderboard/:id', requireDb, async (req, res) => {
 
 app.delete('/api/leaderboard/:id', requireDb, auth.requireEdit, async (req, res) => {
   await pool.query('DELETE FROM leaderboard_entries WHERE id = $1', [req.params.id]);
+  res.status(204).end();
+});
+
+// ---- Stock symbols (structural — PIN-protected like links) ----
+app.post('/api/sections/:id/stocks', requireDb, auth.requireEdit, async (req, res) => {
+  const symbol = (req.body?.symbol || '').trim().toUpperCase();
+  if (!symbol) return res.status(400).json({ error: 'symbol is required' });
+  const { rows: maxRows } = await pool.query(
+    'SELECT COALESCE(MAX(sort_order), 0) AS max FROM stock_symbols WHERE section_id = $1',
+    [req.params.id]
+  );
+  const { rows } = await pool.query(
+    'INSERT INTO stock_symbols (section_id, symbol, sort_order) VALUES ($1, $2, $3) RETURNING id, symbol, sort_order',
+    [req.params.id, symbol, maxRows[0].max + 1]
+  );
+  res.status(201).json(rows[0]);
+});
+
+app.delete('/api/stocks/:id', requireDb, auth.requireEdit, async (req, res) => {
+  await pool.query('DELETE FROM stock_symbols WHERE id = $1', [req.params.id]);
   res.status(204).end();
 });
 

@@ -478,7 +478,8 @@ body {
 .add-link-form,
 .add-kid-form,
 .add-section-form,
-.add-note-form {
+.add-note-form,
+.add-stock-form {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
@@ -488,7 +489,8 @@ body {
 .add-link-form input,
 .add-kid-form input,
 .add-section-form input,
-.add-note-form input {
+.add-note-form input,
+.add-stock-form input {
   flex: 1;
   min-width: 90px;
   padding: 11px 14px;
@@ -505,6 +507,7 @@ body {
 .add-kid-form button[type="submit"],
 .add-section-form button[type="submit"],
 .add-note-form button[type="submit"],
+.add-stock-form button[type="submit"],
 .btn-primary {
   padding: 11px 18px;
   border: none;
@@ -523,8 +526,61 @@ body {
 .add-kid-form button[type="submit"]:active,
 .add-section-form button[type="submit"]:active,
 .add-note-form button[type="submit"]:active,
+.add-stock-form button[type="submit"]:active,
 .btn-primary:active {
   filter: brightness(0.92);
+}
+
+/* Stocks */
+.stocks-list,
+.stocks-edit-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.stock-row,
+.stock-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--row-bg);
+  border: 1px solid var(--row-border);
+}
+
+.stock-symbol {
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.9rem;
+  flex: 1;
+}
+
+.stock-price {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
+.stock-change {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 600;
+  font-size: 0.82rem;
+  min-width: 74px;
+  justify-content: flex-end;
+}
+
+.stock-change.up {
+  color: #22c55e;
+}
+
+.stock-change.down {
+  color: var(--danger);
 }
 
 .btn-secondary {
@@ -905,25 +961,36 @@ body {
   width: 38px;
   height: 38px;
   border-radius: 50%;
-  border: 2px solid transparent;
-  background-color: transparent;
-  background-clip: padding-box;
+  border: none;
+  background: transparent;
   box-shadow: none;
   outline: none;
   cursor: pointer;
-  padding: 0;
+  padding: 3px;
+  display: flex;
+}
+
+/* The gradient lives on a plain inner span, never the <button> itself —
+   native button appearance (drawn by the OS, sometimes surviving
+   `appearance: none` at the edges) was clipping unselected swatches into
+   a visible rounded-square instead of a clean circle. A span has no such
+   quirks. The button's own padding creates the ring gap for .selected. */
+.theme-swatch-fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
   overflow: hidden;
 }
 
 .theme-swatch.selected {
-  border-color: var(--text);
-  box-shadow: 0 0 14px var(--primary-glow);
+  box-shadow: 0 0 0 2px var(--text), 0 0 14px var(--primary-glow);
 }
 
-.theme-swatch-neon { background: linear-gradient(135deg, #ff3ec9, #22e8ff); }
-.theme-swatch-sunset { background: linear-gradient(135deg, #ff8a5b, #4fb0a5); }
-.theme-swatch-ocean { background: linear-gradient(135deg, #2563eb, #06b6d4); }
-.theme-swatch-forest { background: linear-gradient(135deg, #16a34a, #84cc16); }
+.theme-swatch-fill.theme-swatch-neon { background: linear-gradient(135deg, #ff3ec9, #22e8ff); }
+.theme-swatch-fill.theme-swatch-sunset { background: linear-gradient(135deg, #ff8a5b, #4fb0a5); }
+.theme-swatch-fill.theme-swatch-ocean { background: linear-gradient(135deg, #2563eb, #06b6d4); }
+.theme-swatch-fill.theme-swatch-forest { background: linear-gradient(135deg, #16a34a, #84cc16); }
 
 .settings-form {
   display: grid;

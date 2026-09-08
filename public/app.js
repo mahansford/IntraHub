@@ -21,6 +21,7 @@ const SECTION_ICON_NAMES = {
   stats: 'activity',
   notes: 'message-square',
   countdown: 'hourglass',
+  stocks: 'trending-up',
 };
 
 const SECTION_TYPE_LABELS = {
@@ -31,6 +32,7 @@ const SECTION_TYPE_LABELS = {
   stats: 'Server Stats',
   notes: 'Notes',
   countdown: 'Countdown',
+  stocks: 'Stocks',
 };
 
 // ---- Helpers ----
@@ -230,16 +232,57 @@ async function loadAllStats() {
   }
 }
 
+// ---- Stocks (fetched separately per section, filled into slots) ----
+async function loadAllStocks() {
+  const slots = document.querySelectorAll('[data-stocks-slot]');
+  if (!slots.length) return;
+  await Promise.all(
+    Array.from(slots).map(async (el) => {
+      const symbols = el.dataset.symbols;
+      if (!symbols) {
+        el.innerHTML = `<p class="muted">No symbols yet — add one in Customize mode.</p>`;
+        return;
+      }
+      try {
+        const res = await api(`/api/stocks?symbols=${encodeURIComponent(symbols)}`);
+        if (!res.configured) {
+          el.innerHTML = `<p class="muted small">Add a free <a href="https://finnhub.io/register" target="_blank" rel="noopener">Finnhub API key</a> as <code>FINNHUB_API_KEY</code> to show live quotes.</p>`;
+          return;
+        }
+        if (!res.quotes.length) {
+          el.innerHTML = `<p class="muted">No data for these symbols.</p>`;
+          return;
+        }
+        el.innerHTML = res.quotes
+          .map((q) => {
+            const up = q.changePercent != null && q.changePercent >= 0;
+            const changeText = q.changePercent != null ? `${up ? '+' : ''}${q.changePercent.toFixed(2)}%` : '—';
+            return `
+          <div class="stock-row">
+            <span class="stock-symbol">${escapeHtml(q.symbol)}</span>
+            <span class="stock-price mono">${q.price != null ? '$' + q.price.toFixed(2) : '—'}</span>
+            <span class="stock-change ${up ? 'up' : 'down'}">${svgIcon(up ? 'trending-up' : 'trending-down', 13)} ${changeText}</span>
+          </div>`;
+          })
+          .join('');
+      } catch (err) {
+        el.innerHTML = `<p class="error-text">Couldn't load stock quotes right now.</p>`;
+      }
+    })
+  );
+}
+
 // ---- Render ----
 function render() {
   applyTheme();
   renderHeader();
   renderDashboard();
   // Rebuilding the dashboard DOM (every render — not just after a fresh
-  // fetch) replaces any already-filled weather/stats slots with their
-  // "Loading…" placeholders, so refill them every time.
+  // fetch) replaces any already-filled weather/stats/stocks slots with
+  // their "Loading…" placeholders, so refill them every time.
   loadAllWeather();
   loadAllStats();
+  loadAllStocks();
 }
 
 function applyTheme() {
@@ -305,7 +348,7 @@ function renderSettingsCard() {
         <div class="settings-group-label">Theme</div>
         <div class="theme-swatches">
           ${THEMES.map(
-            (theme) => `<button type="button" class="theme-swatch theme-swatch-${theme} ${theme === currentTheme ? 'selected' : ''}" data-action="set-theme" data-theme-value="${theme}" title="${theme[0].toUpperCase() + theme.slice(1)}"></button>`
+            (theme) => `<button type="button" class="theme-swatch ${theme === currentTheme ? 'selected' : ''}" data-action="set-theme" data-theme-value="${theme}" title="${theme[0].toUpperCase() + theme.slice(1)}"><span class="theme-swatch-fill theme-swatch-${theme}"></span></button>`
           ).join('')}
         </div>
       </div>
@@ -375,6 +418,7 @@ function renderSection(section) {
   else if (section.type === 'stats') body = renderStatsBody();
   else if (section.type === 'notes') body = renderNotesBody(section);
   else if (section.type === 'countdown') body = renderCountdownBody(section);
+  else if (section.type === 'stocks') body = renderStocksBody(section);
 
   return `<section class="card section ${hiddenClass}" data-section-id="${section.id}" data-type="${section.type}">
     ${header}
@@ -391,6 +435,32 @@ function renderStatsBody() {
     <div class="stats-grid" data-stats-slot><p class="muted">Loading…</p></div>
     <div class="stat-note" data-stats-note></div>
   `;
+}
+
+function renderStocksBody(section) {
+  const symbols = section.symbols || [];
+
+  if (state.editMode) {
+    const rows = symbols
+      .map(
+        (s) => `
+      <div class="stock-edit-row" data-stock-id="${s.id}">
+        <span class="stock-symbol">${escapeHtml(s.symbol)}</span>
+        <button type="button" class="item-delete" data-action="delete-stock">${svgIcon('x', 13)}</button>
+      </div>`
+      )
+      .join('');
+
+    return `
+      <div class="stocks-edit-list">${rows || `<p class="muted">No symbols yet.</p>`}</div>
+      <form class="add-stock-form" data-action="add-stock">
+        <input name="symbol" placeholder="Ticker, e.g. AAPL" required maxlength="10" style="text-transform:uppercase;" />
+        <button type="submit">+ Add</button>
+      </form>`;
+  }
+
+  const symbolsAttr = symbols.map((s) => s.symbol).join(',');
+  return `<div class="stocks-list" data-stocks-slot data-symbols="${escapeAttr(symbolsAttr)}"><p class="muted">Loading…</p></div>`;
 }
 
 function renderTodoBody(section) {
@@ -807,6 +877,13 @@ dashboard.addEventListener('click', async (e) => {
       return;
     }
 
+    if (action === 'delete-stock') {
+      const id = target.closest('[data-stock-id]').dataset.stockId;
+      await api(`/api/stocks/${id}`, { method: 'DELETE' });
+      await loadDashboard();
+      return;
+    }
+
     if (action === 'plus' || action === 'minus') {
       const id = target.closest('[data-kid-id]').dataset.kidId;
       const delta = action === 'plus' ? 1 : -1;
@@ -890,6 +967,13 @@ dashboard.addEventListener('submit', async (e) => {
       return;
     }
 
+    if (action === 'add-stock') {
+      const id = sectionIdOf(form);
+      await api(`/api/sections/${id}/stocks`, { method: 'POST', body: JSON.stringify(data) });
+      await loadDashboard();
+      return;
+    }
+
     if (action === 'save-countdown') {
       const id = sectionIdOf(form);
       await api(`/api/sections/${id}/countdown`, { method: 'PATCH', body: JSON.stringify(data) });
@@ -921,3 +1005,4 @@ loadMeta();
 loadAuthStatus().then(loadDashboard);
 setInterval(loadAllWeather, 15 * 60 * 1000);
 setInterval(loadAllStats, 10 * 1000);
+setInterval(loadAllStocks, 60 * 1000);

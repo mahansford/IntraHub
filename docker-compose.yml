@@ -36,6 +36,10 @@ services:
       # Shown in the footer, and required reading for AGPL compliance if you
       # modify and redeploy this project — point it at your own fork/source.
       SOURCE_URL: ${SOURCE_URL}
+      # Optional: free key from https://finnhub.io/register, enables the
+      # Stocks card's live quotes. Leave unset and the card just shows how
+      # to add one.
+      FINNHUB_API_KEY: ${FINNHUB_API_KEY}
       # Matches the volume mounts above — change only if you mount them
       # somewhere else.
       HOST_PROC_PATH: /hostproc

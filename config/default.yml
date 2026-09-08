@@ -44,3 +44,10 @@ sections:
       - name: Player 2
         emoji: "dog"
         points: 0
+
+  # Disabled by default since it needs a free FINNHUB_API_KEY (see
+  # .env.example) to show live quotes — turn it on from Customize mode.
+  - type: stocks
+    title: Stocks
+    enabled: false
+    symbols: ["AAPL", "MSFT"]

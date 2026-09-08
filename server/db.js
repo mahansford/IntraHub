@@ -11,7 +11,7 @@ const pool = new Pool({
   max: 5,
 });
 
-const SECTION_TYPES = ['weather', 'todo', 'links', 'leaderboard', 'stats', 'notes', 'countdown'];
+const SECTION_TYPES = ['weather', 'todo', 'links', 'leaderboard', 'stats', 'notes', 'countdown', 'stocks'];
 
 async function ensureSchema() {
   await pool.query(`
@@ -24,7 +24,7 @@ async function ensureSchema() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS sections (
       id SERIAL PRIMARY KEY,
-      type TEXT NOT NULL CHECK (type IN ('weather','todo','links','leaderboard','stats','notes','countdown')),
+      type TEXT NOT NULL CHECK (type IN ('weather','todo','links','leaderboard','stats','notes','countdown','stocks')),
       title TEXT NOT NULL,
       enabled BOOLEAN NOT NULL DEFAULT TRUE,
       sort_order INTEGER NOT NULL DEFAULT 0,
@@ -79,6 +79,15 @@ async function ensureSchema() {
       section_id INTEGER PRIMARY KEY REFERENCES sections(id) ON DELETE CASCADE,
       label TEXT NOT NULL DEFAULT 'Countdown',
       target_date DATE
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS stock_symbols (
+      id SERIAL PRIMARY KEY,
+      section_id INTEGER NOT NULL REFERENCES sections(id) ON DELETE CASCADE,
+      symbol TEXT NOT NULL,
+      sort_order INTEGER NOT NULL DEFAULT 0
     );
   `);
 }
@@ -187,6 +196,17 @@ async function seedFromConfig(config) {
           `INSERT INTO countdown_config (section_id, label, target_date) VALUES ($1, $2, $3)`,
           [sectionId, section.label || 'Countdown', section.target_date || null]
         );
+      }
+
+      if (section.type === 'stocks') {
+        let symbolOrder = 0;
+        for (const symbol of section.symbols || []) {
+          symbolOrder += 1;
+          await client.query(
+            `INSERT INTO stock_symbols (section_id, symbol, sort_order) VALUES ($1, $2, $3)`,
+            [sectionId, String(symbol).toUpperCase(), symbolOrder]
+          );
+        }
       }
     }
 
