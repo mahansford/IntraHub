@@ -59,28 +59,29 @@ app.post('/api/auth/unlock', auth.unlock);
 app.post('/api/auth/lock', auth.lock);
 
 // ---- Weather ----
+// `icon` names match public/icons.js's WEATHER_ICON_NAMES (Lucide icon set).
 const WEATHER_CODES = {
-  0: { text: 'Clear sky', icon: '☀️' },
-  1: { text: 'Mostly clear', icon: '🌤️' },
-  2: { text: 'Partly cloudy', icon: '⛅' },
-  3: { text: 'Overcast', icon: '☁️' },
-  45: { text: 'Foggy', icon: '🌫️' },
-  48: { text: 'Foggy', icon: '🌫️' },
-  51: { text: 'Light drizzle', icon: '🌦️' },
-  53: { text: 'Drizzle', icon: '🌦️' },
-  55: { text: 'Heavy drizzle', icon: '🌧️' },
-  61: { text: 'Light rain', icon: '🌦️' },
-  63: { text: 'Rain', icon: '🌧️' },
-  65: { text: 'Heavy rain', icon: '🌧️' },
-  71: { text: 'Light snow', icon: '🌨️' },
-  73: { text: 'Snow', icon: '❄️' },
-  75: { text: 'Heavy snow', icon: '❄️' },
-  80: { text: 'Rain showers', icon: '🌦️' },
-  81: { text: 'Rain showers', icon: '🌧️' },
-  82: { text: 'Heavy showers', icon: '⛈️' },
-  95: { text: 'Thunderstorm', icon: '⛈️' },
-  96: { text: 'Thunderstorm', icon: '⛈️' },
-  99: { text: 'Thunderstorm', icon: '⛈️' },
+  0: { text: 'Clear sky', icon: 'sun' },
+  1: { text: 'Mostly clear', icon: 'cloud-sun' },
+  2: { text: 'Partly cloudy', icon: 'cloud-sun' },
+  3: { text: 'Overcast', icon: 'cloud' },
+  45: { text: 'Foggy', icon: 'cloud-fog' },
+  48: { text: 'Foggy', icon: 'cloud-fog' },
+  51: { text: 'Light drizzle', icon: 'cloud-drizzle' },
+  53: { text: 'Drizzle', icon: 'cloud-drizzle' },
+  55: { text: 'Heavy drizzle', icon: 'cloud-drizzle' },
+  61: { text: 'Light rain', icon: 'cloud-rain' },
+  63: { text: 'Rain', icon: 'cloud-rain' },
+  65: { text: 'Heavy rain', icon: 'cloud-rain' },
+  71: { text: 'Light snow', icon: 'cloud-snow' },
+  73: { text: 'Snow', icon: 'cloud-snow' },
+  75: { text: 'Heavy snow', icon: 'cloud-snow' },
+  80: { text: 'Rain showers', icon: 'cloud-rain' },
+  81: { text: 'Rain showers', icon: 'cloud-rain' },
+  82: { text: 'Heavy showers', icon: 'cloud-lightning' },
+  95: { text: 'Thunderstorm', icon: 'cloud-lightning' },
+  96: { text: 'Thunderstorm', icon: 'cloud-lightning' },
+  99: { text: 'Thunderstorm', icon: 'cloud-lightning' },
 };
 
 let weatherCache = { data: null, fetchedAt: 0, key: null };
@@ -107,10 +108,10 @@ app.get('/api/weather', requireDb, async (req, res) => {
     const data = {
       location: locationName,
       currentTempC: Math.round(raw.current?.temperature_2m),
-      current: WEATHER_CODES[currentCode] || { text: 'Unknown', icon: '❓' },
+      current: WEATHER_CODES[currentCode] || { text: 'Unknown', icon: 'cloud' },
       todayHighC: Math.round(raw.daily?.temperature_2m_max?.[0]),
       todayLowC: Math.round(raw.daily?.temperature_2m_min?.[0]),
-      today: WEATHER_CODES[todayCode] || { text: 'Unknown', icon: '❓' },
+      today: WEATHER_CODES[todayCode] || { text: 'Unknown', icon: 'cloud' },
     };
     weatherCache = { data, fetchedAt: now, key: cacheKey };
     res.json(data);
@@ -288,7 +289,7 @@ app.post('/api/sections/:id/links', requireDb, auth.requireEdit, async (req, res
   );
   const { rows } = await pool.query(
     'INSERT INTO links (section_id, label, url, icon, sort_order) VALUES ($1, $2, $3, $4, $5) RETURNING id, label, url, icon, sort_order',
-    [req.params.id, label.trim(), url.trim(), (icon || '🔗').trim(), maxRows[0].max + 1]
+    [req.params.id, label.trim(), url.trim(), (icon || 'link-2').trim(), maxRows[0].max + 1]
   );
   res.status(201).json(rows[0]);
 });
@@ -387,7 +388,7 @@ app.post('/api/sections/:id/leaderboard', requireDb, auth.requireEdit, async (re
   );
   const { rows } = await pool.query(
     'INSERT INTO leaderboard_entries (section_id, name, emoji, sort_order) VALUES ($1, $2, $3, $4) RETURNING id, name, emoji, points, sort_order',
-    [req.params.id, name.trim(), (emoji || '⭐').trim(), maxRows[0].max + 1]
+    [req.params.id, name.trim(), (emoji || 'star').trim(), maxRows[0].max + 1]
   );
   res.status(201).json(rows[0]);
 });

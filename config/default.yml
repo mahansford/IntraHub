@@ -25,22 +25,22 @@ sections:
   - type: todo
     title: "Today's Brief"
     items:
-      - text: "Customize this dashboard from the ⚙️ Customize button"
+      - text: "Customize this dashboard from the Customize button"
         done: false
 
   - type: links
     title: Quick Links
     links:
       - label: Example
-        icon: "🔗"
+        icon: "link-2"
         url: "#"
 
   - type: leaderboard
     title: Points Leaderboard
     entries:
       - name: Player 1
-        emoji: "🦊"
+        emoji: "cat"
         points: 0
       - name: Player 2
-        emoji: "🐸"
+        emoji: "dog"
         points: 0

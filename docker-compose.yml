@@ -30,7 +30,7 @@ services:
       DB_NAME: ${DB_NAME}
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
-      # Optional: protects the ⚙️ Customize / edit mode with a PIN. Leave
+      # Optional: protects the Customize / edit mode with a PIN. Leave
       # unset for no protection (fine for a trusted home network).
       ADMIN_PIN: ${ADMIN_PIN}
       # Shown in the footer, and required reading for AGPL compliance if you

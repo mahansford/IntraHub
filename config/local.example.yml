@@ -1,6 +1,6 @@
 # Copy this file to config/local.yml (gitignored) to seed your own dashboard
 # on first boot instead of the generic config/default.yml. Only used once,
-# when the database is empty — after that, edit live via the ⚙️ Customize
+# when the database is empty — after that, edit live via the Customize
 # button in the UI.
 
 site:
@@ -26,23 +26,23 @@ sections:
     title: Quick Links
     links:
       - label: Questly
-        icon: "🗺️"
+        icon: "map"
         url: "#"
       - label: Today
-        icon: "📅"
+        icon: "calendar"
         url: "#"
 
   - type: leaderboard
     title: "Points Leaderboard"
     entries:
       - name: Kid 1
-        emoji: "🦊"
+        emoji: "cat"
         points: 0
       - name: Kid 2
-        emoji: "🐸"
+        emoji: "dog"
         points: 0
       - name: Kid 3
-        emoji: "🐝"
+        emoji: "rabbit"
         points: 0
 
   - type: notes

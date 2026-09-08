@@ -1,40 +1,26 @@
+// Icons come from icons.js (loaded before this file): svgIcon(name, size),
+// renderIcon(value, size) [falls back to text for unknown values], plus
+// ICON_PICKER_NAMES, WEATHER_ICON_NAMES, DEFAULT_LINK_ICON, DEFAULT_AVATAR_ICON.
+
 const state = {
   settings: {},
   sections: [],
   authStatus: { pinRequired: false, unlocked: true },
   editMode: false,
+  loadHistory: [],
+  lastStatsSampleAt: 0,
 };
 
 const THEMES = ['neon', 'sunset', 'ocean', 'forest'];
 
-const ICONS = {
-  cloud: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 19a4.5 4.5 0 0 1-.5-8.98A5.5 5.5 0 0 1 16.9 8.02 4.5 4.5 0 0 1 16.5 19h-10Z"/></svg>`,
-  cloudBig: `<svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 19a4.5 4.5 0 0 1-.5-8.98A5.5 5.5 0 0 1 16.9 8.02 4.5 4.5 0 0 1 16.5 19h-10Z"/></svg>`,
-  check: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>`,
-  grid: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>`,
-  trophy: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v4a5 5 0 0 1-10 0V4Z"/><path d="M7 5H4a3 3 0 0 0 3 5M17 5h3a3 3 0 0 1-3 5"/></svg>`,
-  activity: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2-7 4 14 2-7h6"/></svg>`,
-  note: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10Z"/></svg>`,
-  hourglass: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h12M6 22h12M6 2c0 6 12 6 12 10s-12 4-12 10M18 2c0 6-12 6-12 10s12 4 12 10"/></svg>`,
-  arrowUp: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>`,
-  arrowDown: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>`,
-  eye: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>`,
-  trash: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13"/></svg>`,
-  close: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>`,
-  lock: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>`,
-  gear: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 13a7.6 7.6 0 0 0 .1-1 7.6 7.6 0 0 0-.1-1l2-1.6-2-3.4-2.3.9a7.4 7.4 0 0 0-1.7-1L15 3.5h-4l-.4 2.4a7.4 7.4 0 0 0-1.7 1l-2.3-.9-2 3.4L6.6 11a7.6 7.6 0 0 0-.1 1 7.6 7.6 0 0 0 .1 1l-2 1.6 2 3.4 2.3-.9a7.4 7.4 0 0 0 1.7 1l.4 2.4h4l.4-2.4a7.4 7.4 0 0 0 1.7-1l2.3.9 2-3.4-2-1.6Z"/></svg>`,
-  plus: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>`,
-  upload: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>`,
-};
-
-const SECTION_ICONS = {
-  weather: ICONS.cloud,
-  todo: ICONS.check,
-  links: ICONS.grid,
-  leaderboard: ICONS.trophy,
-  stats: ICONS.activity,
-  notes: ICONS.note,
-  countdown: ICONS.hourglass,
+const SECTION_ICON_NAMES = {
+  weather: 'cloud',
+  todo: 'square-check',
+  links: 'grid-3x3',
+  leaderboard: 'trophy',
+  stats: 'activity',
+  notes: 'message-square',
+  countdown: 'hourglass',
 };
 
 const SECTION_TYPE_LABELS = {
@@ -60,7 +46,7 @@ function escapeAttr(str) {
 
 function initialsFromTitle(title) {
   const words = (title || 'IntraHub').trim().split(/\s+/).filter(Boolean);
-  if (!words.length) return 'FD';
+  if (!words.length) return 'IH';
   if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
   return (words[0][0] + words[1][0]).toUpperCase();
 }
@@ -71,6 +57,37 @@ function formatBytes(bytes) {
   if (gb >= 1) return `${gb.toFixed(1)} GB`;
   const mb = bytes / 1024 ** 2;
   return `${mb.toFixed(0)} MB`;
+}
+
+function ringGauge(percent, { size = 68, stroke = 7, color = 'var(--accent)' } = {}) {
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const pct = percent == null ? 0 : Math.max(0, Math.min(100, percent));
+  const offset = c - (pct / 100) * c;
+  return `
+    <div class="ring-gauge" style="width:${size}px; height:${size}px;">
+      <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+        <circle cx="${size / 2}" cy="${size / 2}" r="${r}" style="fill:none; stroke:rgba(255,255,255,0.08); stroke-width:${stroke};" />
+        <circle cx="${size / 2}" cy="${size / 2}" r="${r}" style="fill:none; stroke:${color}; stroke-width:${stroke}; stroke-linecap:round;" stroke-dasharray="${c}" stroke-dashoffset="${offset}" />
+      </svg>
+      <div class="ring-gauge-label">${percent == null ? '—' : pct + '%'}</div>
+    </div>`;
+}
+
+function sparkline(values, { width = 130, height = 34, color = 'var(--accent)' } = {}) {
+  if (!values.length) {
+    return `<div class="sparkline-wrap muted" style="font-size:0.72rem; padding-top:4px;">Gathering history…</div>`;
+  }
+  const max = Math.max(...values, 1);
+  const stepX = values.length > 1 ? width / (values.length - 1) : 0;
+  const points = values
+    .map((v, i) => {
+      const x = i * stepX;
+      const y = height - (Math.min(v, max) / max) * (height - 4) - 2;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(' ');
+  return `<div class="sparkline-wrap"><svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none"><polyline points="${points}" style="fill:none; stroke:${color}; stroke-width:2; stroke-linecap:round; stroke-linejoin:round;" /></svg></div>`;
 }
 
 async function api(path, opts = {}) {
@@ -108,6 +125,10 @@ function updateClock() {
 }
 
 // ---- Load ----
+function initStaticIcons() {
+  document.getElementById('footer-heart').innerHTML = svgIcon('heart', 14);
+}
+
 async function loadMeta() {
   try {
     const meta = await api('/api/meta');
@@ -144,7 +165,7 @@ async function loadAllWeather() {
   try {
     const w = await api('/api/weather');
     const html = `
-      ${ICONS.cloudBig.replace('<svg ', '<svg class="weather-icon" ')}
+      <span class="weather-icon">${svgIcon(w.current.icon, 46)}</span>
       <div>
         <div class="weather-temp">${w.currentTempC}°C</div>
         <div class="weather-meta">${w.current.text} · ${escapeHtml(w.location)}</div>
@@ -162,35 +183,47 @@ async function loadAllStats() {
   if (!slots.length) return;
   try {
     const s = await api('/api/stats');
+
+    const now = Date.now();
+    if (now - state.lastStatsSampleAt > 8000) {
+      state.loadHistory.push(s.load ? s.load.one : 0);
+      if (state.loadHistory.length > 24) state.loadHistory.shift();
+      state.lastStatsSampleAt = now;
+    }
+
     const load = s.load ? s.load.one.toFixed(2) : '—';
     const memPct = s.memory?.usedPercent ?? null;
     const diskPct = s.disk?.usedPercent ?? null;
+
     const html = `
       <div class="stat-tile">
-        <div class="stat-label">Load avg (1m)</div>
-        <div class="stat-value">${load}${s.cpuCount ? ` <span class="muted" style="font-size:0.7rem;">/ ${s.cpuCount} cores</span>` : ''}</div>
+        <div class="stat-label">${svgIcon('cpu', 13)} Load avg${s.cpuCount ? ` · ${s.cpuCount} cores` : ''}</div>
+        <div class="stat-value">${load}</div>
+        ${sparkline(state.loadHistory, { color: 'var(--accent)' })}
+      </div>
+      <div class="stat-tile stat-tile-gauge">
+        <div class="stat-label">${svgIcon('memory-stick', 13)} Memory</div>
+        ${ringGauge(memPct, { color: 'var(--accent)' })}
+        <div class="stat-sub">${formatBytes(s.memory?.usedBytes)} / ${formatBytes(s.memory?.totalBytes)}</div>
+      </div>
+      <div class="stat-tile stat-tile-gauge">
+        <div class="stat-label">${svgIcon('hard-drive', 13)} Disk</div>
+        ${ringGauge(diskPct, { color: 'var(--primary)' })}
+        <div class="stat-sub">${formatBytes(s.disk?.usedBytes)} / ${formatBytes(s.disk?.totalBytes)}</div>
       </div>
       <div class="stat-tile">
-        <div class="stat-label">Memory</div>
-        <div class="stat-value">${memPct != null ? memPct + '%' : '—'}</div>
-        <div class="muted" style="font-size:0.72rem; margin-top:2px;">${formatBytes(s.memory?.usedBytes)} / ${formatBytes(s.memory?.totalBytes)}</div>
-        ${memPct != null ? `<div class="stat-bar-track"><div class="stat-bar-fill" style="width:${memPct}%"></div></div>` : ''}
-      </div>
-      <div class="stat-tile">
-        <div class="stat-label">Disk</div>
-        <div class="stat-value">${diskPct != null ? diskPct + '%' : '—'}</div>
-        <div class="muted" style="font-size:0.72rem; margin-top:2px;">${formatBytes(s.disk?.usedBytes)} / ${formatBytes(s.disk?.totalBytes)}</div>
-        ${diskPct != null ? `<div class="stat-bar-track"><div class="stat-bar-fill" style="width:${diskPct}%"></div></div>` : ''}
-      </div>
-      <div class="stat-tile">
-        <div class="stat-label">Uptime</div>
+        <div class="stat-label">${svgIcon('clock', 13)} Uptime</div>
         <div class="stat-value mono" style="font-size:1.05rem;">${s.uptimeText}</div>
       </div>
     `;
     slots.forEach((el) => {
       el.innerHTML = html;
       const note = el.parentElement.querySelector('[data-stats-note]');
-      if (note) note.textContent = s.hostMounted ? '' : 'Showing this container\'s own resources — mount the host /proc and / for true host stats (see docker-compose.yml).';
+      if (note) {
+        note.textContent = s.hostMounted
+          ? ''
+          : "Showing this container's own resources — mount the host /proc and / for true host stats (see docker-compose.yml).";
+      }
     });
   } catch (err) {
     slots.forEach((el) => (el.innerHTML = `<p class="error-text">Couldn't read server stats right now.</p>`));
@@ -229,9 +262,9 @@ function renderHeader() {
     logoBox.textContent = initialsFromTitle(title);
   }
 
-  const btn = document.getElementById('edit-toggle');
+  document.getElementById('edit-toggle-icon').innerHTML = svgIcon(state.editMode ? 'square-check' : 'settings', 16);
   document.getElementById('edit-toggle-label').textContent = state.editMode ? 'Done' : 'Customize';
-  btn.classList.toggle('active', state.editMode);
+  document.getElementById('edit-toggle').classList.toggle('active', state.editMode);
 }
 
 function renderDashboard() {
@@ -256,7 +289,7 @@ function renderSettingsCard() {
   return `
   <section class="card settings-card">
     <div class="section-header-title" style="margin-bottom: 20px;">
-      ${ICONS.gear}
+      ${svgIcon('settings', 18)}
       <h2>Dashboard Settings</h2>
     </div>
 
@@ -265,7 +298,7 @@ function renderSettingsCard() {
         <div class="settings-group-label">Logo</div>
         <div style="display:flex; align-items:center; gap:12px;">
           <div style="width:44px; height:44px; border-radius:13px; background:${s.logo_data_url ? `url(${s.logo_data_url}) center/cover` : 'linear-gradient(135deg, var(--primary), var(--accent))'}; display:flex; align-items:center; justify-content:center; font-weight:700; color:var(--on-primary); flex-shrink:0;">${s.logo_data_url ? '' : escapeHtml(initialsFromTitle(s.site_title))}</div>
-          <button type="button" class="btn-secondary" data-action="upload-logo">${ICONS.upload} Upload image</button>
+          <button type="button" class="btn-secondary" data-action="upload-logo">${svgIcon('upload', 14)} Upload image</button>
         </div>
       </div>
       <div>
@@ -293,7 +326,7 @@ function renderSettingsCard() {
       </label>
       <div class="modal-actions">
         <button type="submit" class="btn-primary">Save settings</button>
-        ${state.authStatus.pinRequired ? `<button type="button" class="btn-secondary" data-action="lock-now">${ICONS.lock} Lock now</button>` : ''}
+        ${state.authStatus.pinRequired ? `<button type="button" class="btn-secondary" data-action="lock-now">${svgIcon('lock', 14)} Lock now</button>` : ''}
       </div>
     </form>
   </section>`;
@@ -303,7 +336,7 @@ function renderAddSectionBar() {
   return `
   <section class="card add-section-card">
     <div class="section-header-title" style="margin-bottom: 16px;">
-      ${ICONS.plus}
+      ${svgIcon('plus', 18)}
       <h2>Add Section</h2>
     </div>
     <form class="add-section-form" data-action="add-section">
@@ -320,16 +353,16 @@ function renderAddSectionBar() {
 
 function renderSection(section) {
   const hiddenClass = !section.enabled ? 'section-hidden' : '';
-  const icon = SECTION_ICONS[section.type] || '';
+  const icon = svgIcon(SECTION_ICON_NAMES[section.type] || '', 18);
   const header = state.editMode
     ? `
     <div class="section-header">
       <input class="section-title-input" data-action="rename-section" value="${escapeAttr(section.title)}" />
       <div class="section-controls">
-        <button type="button" class="icon-btn" data-action="move-up" title="Move up">${ICONS.arrowUp}</button>
-        <button type="button" class="icon-btn" data-action="move-down" title="Move down">${ICONS.arrowDown}</button>
-        <button type="button" class="icon-btn" data-action="toggle-enabled" title="${section.enabled ? 'Hide' : 'Show'}">${ICONS.eye}</button>
-        <button type="button" class="icon-btn danger" data-action="delete-section" title="Delete section">${ICONS.trash}</button>
+        <button type="button" class="icon-btn" data-action="move-up" title="Move up">${svgIcon('arrow-up', 13)}</button>
+        <button type="button" class="icon-btn" data-action="move-down" title="Move down">${svgIcon('arrow-down', 13)}</button>
+        <button type="button" class="icon-btn" data-action="toggle-enabled" title="${section.enabled ? 'Hide' : 'Show'}">${svgIcon(section.enabled ? 'eye' : 'eye-off', 13)}</button>
+        <button type="button" class="icon-btn danger" data-action="delete-section" title="Delete section">${svgIcon('trash', 13)}</button>
       </div>
     </div>`
     : `<div class="section-header"><div class="section-header-title">${icon}<h2>${escapeHtml(section.title)}</h2></div></div>`;
@@ -369,7 +402,7 @@ function renderTodoBody(section) {
       <li class="${item.done ? 'done' : ''}" data-item-id="${item.id}">
         <input type="checkbox" ${item.done ? 'checked' : ''} data-action="toggle-todo" />
         <span class="item-text">${escapeHtml(item.text)}</span>
-        <button type="button" class="item-delete" data-action="delete-todo">${ICONS.close}</button>
+        <button type="button" class="item-delete" data-action="delete-todo">${svgIcon('x', 13)}</button>
       </li>`
         )
         .join('')
@@ -385,38 +418,43 @@ function renderTodoBody(section) {
 
 function renderLinksBody(section) {
   const links = section.links || [];
-  const tiles = links
-    .map((link, i) =>
-      state.editMode
-        ? `
-      <div class="link-tile-edit" data-link-id="${link.id}">
-        <div class="link-tile-icon ${i % 2 ? 'grad-b' : 'grad-a'}" style="font-size:1.2rem;">${escapeHtml(link.icon)}</div>
-        <input class="link-icon-input" data-field="icon" value="${escapeAttr(link.icon)}" maxlength="4" />
+
+  if (state.editMode) {
+    const rows = links
+      .map(
+        (link) => `
+      <div class="link-edit-row" data-link-id="${link.id}">
+        <button type="button" class="icon-pick-btn" data-action="pick-icon" data-role="link-existing" title="Change icon">${renderIcon(link.icon, 20)}</button>
         <input data-field="label" value="${escapeAttr(link.label)}" placeholder="Label" />
         <input data-field="url" value="${escapeAttr(link.url)}" placeholder="https://…" />
-        <button type="button" class="item-delete" data-action="delete-link">${ICONS.close}</button>
+        <button type="button" class="item-delete" data-action="delete-link">${svgIcon('x', 13)}</button>
       </div>`
-        : `
+      )
+      .join('');
+
+    return `
+      <div class="links-edit-list">${rows}</div>
+      <form class="add-link-form" data-action="add-link">
+        <button type="button" class="icon-pick-btn" data-action="pick-icon" data-role="link-new" title="Choose icon">${svgIcon(DEFAULT_LINK_ICON, 20)}</button>
+        <input type="hidden" name="icon" value="${DEFAULT_LINK_ICON}" data-role="icon-hidden" />
+        <input name="label" placeholder="Label" required />
+        <input name="url" placeholder="https://…" required />
+        <button type="submit">+ Add link</button>
+      </form>`;
+  }
+
+  const tiles = links
+    .map(
+      (link, i) => `
       <a class="link-tile" href="${escapeAttr(link.url)}" target="_blank" rel="noopener">
-        <div class="link-tile-icon ${i % 2 ? 'grad-b' : 'grad-a'}" style="font-size:1.5rem;">${escapeHtml(link.icon)}</div>
+        <div class="link-tile-icon ${i % 2 ? 'grad-b' : 'grad-a'}">${renderIcon(link.icon, 24)}</div>
         <span class="link-label">${escapeHtml(link.label)}</span>
       </a>`
     )
     .join('');
 
-  const addForm = state.editMode
-    ? `
-    <form class="add-link-form" data-action="add-link" style="margin-top:14px;">
-      <input name="icon" placeholder="🔗" maxlength="4" value="🔗" style="max-width:56px; text-align:center;" />
-      <input name="label" placeholder="Label" required />
-      <input name="url" placeholder="https://…" required />
-      <button type="submit">+ Add link</button>
-    </form>`
-    : '';
-
-  const emptyMsg = !links.length && !state.editMode ? `<p class="muted">No links yet.</p>` : '';
-
-  return `<div class="links-grid">${tiles}</div>${emptyMsg}${addForm}`;
+  const emptyMsg = !links.length ? `<p class="muted">No links yet.</p>` : '';
+  return `<div class="links-grid">${tiles}</div>${emptyMsg}`;
 }
 
 function renderLeaderboardBody(section) {
@@ -427,8 +465,8 @@ function renderLeaderboardBody(section) {
     <div class="kid-row" data-kid-id="${kid.id}">
       ${
         state.editMode
-          ? `<input class="kid-emoji-input" data-field="emoji" value="${escapeAttr(kid.emoji)}" maxlength="4" />`
-          : `<span class="kid-emoji">${kid.emoji}</span>`
+          ? `<button type="button" class="icon-pick-btn" data-action="pick-icon" data-role="kid-existing" title="Change avatar">${renderIcon(kid.emoji, 20)}</button>`
+          : `<span class="kid-emoji">${renderIcon(kid.emoji, 20)}</span>`
       }
       ${
         state.editMode
@@ -438,7 +476,7 @@ function renderLeaderboardBody(section) {
       <button type="button" class="kid-btn minus" data-action="minus" aria-label="Subtract point">−</button>
       <span class="kid-points mono">${kid.points}</span>
       <button type="button" class="kid-btn plus" data-action="plus" aria-label="Add point">+</button>
-      ${state.editMode ? `<button type="button" class="item-delete" data-action="delete-kid">${ICONS.close}</button>` : ''}
+      ${state.editMode ? `<button type="button" class="item-delete" data-action="delete-kid">${svgIcon('x', 13)}</button>` : ''}
     </div>`
     )
     .join('');
@@ -446,7 +484,8 @@ function renderLeaderboardBody(section) {
   const addForm = state.editMode
     ? `
     <form class="add-kid-form" data-action="add-kid">
-      <input name="emoji" placeholder="⭐" maxlength="4" value="⭐" style="max-width:56px; text-align:center;" />
+      <button type="button" class="icon-pick-btn" data-action="pick-icon" data-role="kid-new" title="Choose avatar">${svgIcon(DEFAULT_AVATAR_ICON, 20)}</button>
+      <input type="hidden" name="emoji" value="${DEFAULT_AVATAR_ICON}" data-role="icon-hidden" />
       <input name="name" placeholder="Name" required />
       <button type="submit">+ Add</button>
     </form>`
@@ -478,7 +517,7 @@ function renderNotesBody(section) {
           <div class="note-text">${escapeHtml(note.text)}</div>
           <div class="note-meta">${note.author ? escapeHtml(note.author) + ' · ' : ''}${timeAgo(note.created_at)}</div>
         </div>
-        <button type="button" class="item-delete" data-action="delete-note">${ICONS.close}</button>
+        <button type="button" class="item-delete" data-action="delete-note">${svgIcon('x', 13)}</button>
       </div>`
         )
         .join('')
@@ -502,9 +541,13 @@ function renderCountdownBody(section) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const days = Math.round((target - today) / 86400000);
-    if (days > 0) daysHtml = `<span class="countdown-number">${days}</span><span class="countdown-unit">day${days === 1 ? '' : 's'} to go</span>`;
-    else if (days === 0) daysHtml = `<span class="countdown-number">🎉</span><span class="countdown-unit">it's today!</span>`;
-    else daysHtml = `<span class="countdown-number">${Math.abs(days)}</span><span class="countdown-unit">day${Math.abs(days) === 1 ? '' : 's'} ago</span>`;
+    if (days > 0) {
+      daysHtml = `<span class="countdown-number">${days}</span><span class="countdown-unit">day${days === 1 ? '' : 's'} to go</span>`;
+    } else if (days === 0) {
+      daysHtml = `<span class="countdown-number">${svgIcon('party-popper', 40)}</span><span class="countdown-unit">it's today!</span>`;
+    } else {
+      daysHtml = `<span class="countdown-number">${Math.abs(days)}</span><span class="countdown-unit">day${Math.abs(days) === 1 ? '' : 's'} ago</span>`;
+    }
   }
 
   const view = `
@@ -576,6 +619,34 @@ document.getElementById('pin-form').addEventListener('submit', async (e) => {
   }
 });
 
+// ---- Icon picker ----
+let iconPickerCallback = null;
+
+function openIconPicker(onSelect) {
+  const grid = document.getElementById('icon-picker-grid');
+  grid.innerHTML = ICON_PICKER_NAMES.map(
+    (name) => `<button type="button" class="icon-picker-item" data-icon-name="${name}" title="${name}">${svgIcon(name, 20)}</button>`
+  ).join('');
+  iconPickerCallback = onSelect;
+  document.getElementById('icon-picker-modal').hidden = false;
+}
+
+function closeIconPicker() {
+  document.getElementById('icon-picker-modal').hidden = true;
+  iconPickerCallback = null;
+}
+
+document.getElementById('icon-picker-cancel').addEventListener('click', closeIconPicker);
+
+document.getElementById('icon-picker-grid').addEventListener('click', (e) => {
+  const btn = e.target.closest('.icon-picker-item');
+  if (!btn) return;
+  const name = btn.dataset.iconName;
+  const callback = iconPickerCallback;
+  closeIconPicker();
+  if (callback) callback(name);
+});
+
 // ---- Logo upload ----
 const MAX_LOGO_FILE_BYTES = 700_000;
 
@@ -618,9 +689,9 @@ function sectionIdOf(el) {
 }
 
 dashboard.addEventListener('click', async (e) => {
-  const action = e.target.closest('[data-action]')?.dataset.action;
-  if (!action) return;
   const target = e.target.closest('[data-action]');
+  const action = target?.dataset.action;
+  if (!action) return;
 
   try {
     if (action === 'lock-now') {
@@ -632,7 +703,6 @@ dashboard.addEventListener('click', async (e) => {
     }
 
     if (action === 'upload-logo') {
-      state.editMode = true; // settings card only renders in edit mode already
       document.getElementById('logo-input').click();
       return;
     }
@@ -641,6 +711,43 @@ dashboard.addEventListener('click', async (e) => {
       const theme = target.dataset.themeValue;
       await api('/api/settings', { method: 'PATCH', body: JSON.stringify({ theme }) });
       await loadDashboard();
+      return;
+    }
+
+    if (action === 'pick-icon') {
+      const role = target.dataset.role;
+
+      if (role === 'link-existing') {
+        const linkId = target.closest('[data-link-id]').dataset.linkId;
+        openIconPicker(async (name) => {
+          try {
+            await api(`/api/links/${linkId}`, { method: 'PATCH', body: JSON.stringify({ icon: name }) });
+            await loadDashboard();
+          } catch (err) {
+            if (err.message !== 'unauthorized') alert(err.message);
+          }
+        });
+      } else if (role === 'link-new') {
+        openIconPicker((name) => {
+          target.innerHTML = svgIcon(name, 20);
+          target.nextElementSibling.value = name;
+        });
+      } else if (role === 'kid-existing') {
+        const kidId = target.closest('[data-kid-id]').dataset.kidId;
+        openIconPicker(async (name) => {
+          try {
+            await api(`/api/leaderboard/${kidId}`, { method: 'PATCH', body: JSON.stringify({ emoji: name }) });
+            await loadDashboard();
+          } catch (err) {
+            if (err.message !== 'unauthorized') alert(err.message);
+          }
+        });
+      } else if (role === 'kid-new') {
+        openIconPicker((name) => {
+          target.innerHTML = svgIcon(name, 20);
+          target.nextElementSibling.value = name;
+        });
+      }
       return;
     }
 
@@ -729,11 +836,10 @@ dashboard.addEventListener('change', async (e) => {
       return; // no reload needed, value already reflects intent
     }
 
-    if (e.target.dataset.field && e.target.closest('.link-tile-edit')) {
+    if (e.target.dataset.field && e.target.closest('.link-edit-row')) {
       const linkId = e.target.closest('[data-link-id]').dataset.linkId;
       const field = e.target.dataset.field;
       await api(`/api/links/${linkId}`, { method: 'PATCH', body: JSON.stringify({ [field]: e.target.value }) });
-      await loadDashboard();
       return;
     }
 
@@ -808,9 +914,10 @@ dashboard.addEventListener('submit', async (e) => {
 });
 
 // ---- Init ----
+initStaticIcons();
 updateClock();
 setInterval(updateClock, 30_000);
 loadMeta();
 loadAuthStatus().then(loadDashboard);
 setInterval(loadAllWeather, 15 * 60 * 1000);
-setInterval(loadAllStats, 30 * 1000);
+setInterval(loadAllStats, 10 * 1000);

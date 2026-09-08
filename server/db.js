@@ -38,7 +38,7 @@ async function ensureSchema() {
       section_id INTEGER NOT NULL REFERENCES sections(id) ON DELETE CASCADE,
       label TEXT NOT NULL,
       url TEXT NOT NULL,
-      icon TEXT NOT NULL DEFAULT '🔗',
+      icon TEXT NOT NULL DEFAULT 'link-2',
       sort_order INTEGER NOT NULL DEFAULT 0
     );
   `);
@@ -58,7 +58,7 @@ async function ensureSchema() {
       id SERIAL PRIMARY KEY,
       section_id INTEGER NOT NULL REFERENCES sections(id) ON DELETE CASCADE,
       name TEXT NOT NULL,
-      emoji TEXT NOT NULL DEFAULT '⭐',
+      emoji TEXT NOT NULL DEFAULT 'star',
       points INTEGER NOT NULL DEFAULT 0,
       sort_order INTEGER NOT NULL DEFAULT 0
     );
@@ -147,7 +147,7 @@ async function seedFromConfig(config) {
           await client.query(
             `INSERT INTO links (section_id, label, url, icon, sort_order)
              VALUES ($1, $2, $3, $4, $5)`,
-            [sectionId, link.label, link.url, link.icon || '🔗', linkOrder]
+            [sectionId, link.label, link.url, link.icon || 'link-2', linkOrder]
           );
         }
       }
@@ -159,7 +159,7 @@ async function seedFromConfig(config) {
           await client.query(
             `INSERT INTO leaderboard_entries (section_id, name, emoji, points, sort_order)
              VALUES ($1, $2, $3, $4, $5)`,
-            [sectionId, entry.name, entry.emoji || '⭐', entry.points || 0, entryOrder]
+            [sectionId, entry.name, entry.emoji || 'star', entry.points || 0, entryOrder]
           );
         }
       }

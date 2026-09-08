@@ -16,9 +16,11 @@ Licensed under [AGPL-3.0-or-later](LICENSE).
   Weather / Server Stats / To-do / Links / Notes / Countdown / Leaderboard
   sections as you like, straight from the dashboard.
 - **Customisable links** — each Links section is its own grid of icon +
-  label + URL tiles you add, edit and remove inline.
-- **Server Stats** — live host CPU load, memory, disk and uptime (see
-  [Server Stats](#server-stats) below for the Docker mount it needs).
+  label + URL tiles you add, edit and remove inline, picking each icon from
+  a built-in picker (no emoji — see [Icons](#icons)).
+- **Server Stats** — live host CPU load (with history sparkline), memory and
+  disk usage (ring gauges), and uptime (see [Server Stats](#server-stats)
+  below for the Docker mount it needs).
 - **Notes board** — a simple shared message board the whole family can post
   to.
 - **Countdown** — a days-to-go counter for a birthday, holiday or event.
@@ -82,7 +84,7 @@ docker run -d --name intrahub -p 8080:8080 \
 ## Configuration
 
 Everything about the dashboard's *content* — sections, links, leaderboard
-entries, site title, weather location — is editable live from the ⚙️
+entries, site title, weather location — is editable live from the
 **Customize** button in the header, backed by Postgres. Nothing needs a
 restart.
 
@@ -105,10 +107,10 @@ Environment variables (`.env`, see `.env.example`):
 
 ## Editing the dashboard
 
-Click **⚙️ Customize** in the header (enter the PIN if you set one).
+Click **Customize** in the header (enter the PIN if you set one).
 While in edit mode you can:
 
-- Rename, reorder (↑/↓), hide (🙈), or delete (🗑️) any section
+- Rename, reorder, hide, or delete any section
 - Add a new section (pick a type and a title, bottom of the page)
 - Add/edit/delete links within a Links section
 - Add/edit/delete entries within a Leaderboard section
@@ -117,6 +119,19 @@ While in edit mode you can:
 Day-to-day interactions — ticking off a to-do item, adding one, posting a
 note, and adjusting leaderboard points with +/− — always stay open, even
 with a PIN set, since that's normal use rather than editing the layout.
+
+## Icons
+
+Every icon in the app — the section chrome (arrows, gear, trash, ...) and
+the icons you pick for links and leaderboard avatars — comes from
+[Lucide](https://lucide.dev) (ISC License), bundled locally in
+[public/icons.js](public/icons.js) as plain inline SVG. No emoji, no icon
+font, no external request at runtime. Click the icon next to a link or
+leaderboard entry in edit mode to open the picker; ~40 icons are curated
+for that picker (see `ICON_PICKER_NAMES` in `public/icons.js`) out of the
+full set bundled for the app's own chrome. Add more by fetching the SVG
+from `https://raw.githubusercontent.com/lucide-icons/lucide/main/icons/<name>.svg`
+and adding it to `ICON_PATHS`.
 
 ## Server Stats
 

@@ -44,21 +44,21 @@ function builtInDefaults() {
       {
         type: 'todo',
         title: "Today's Brief",
-        items: [{ text: 'Customize this dashboard from the ⚙️ menu', done: false }],
+        items: [{ text: 'Customize this dashboard from the Customize button', done: false }],
       },
       {
         type: 'links',
         title: 'Quick Links',
         links: [
-          { label: 'Example', icon: '🔗', url: '#' },
+          { label: 'Example', icon: 'link-2', url: '#' },
         ],
       },
       {
         type: 'leaderboard',
         title: 'Points Leaderboard',
         entries: [
-          { name: 'Player 1', emoji: '🦊', points: 0 },
-          { name: 'Player 2', emoji: '🐸', points: 0 },
+          { name: 'Player 1', emoji: 'cat', points: 0 },
+          { name: 'Player 2', emoji: 'dog', points: 0 },
         ],
       },
     ],
