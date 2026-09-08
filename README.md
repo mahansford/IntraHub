@@ -35,7 +35,7 @@ Licensed under [AGPL-3.0-or-later](LICENSE).
 ## Quick start
 
 ```bash
-git clone <this-repo>
+git clone https://github.com/mahansford/intrahub.git
 cd intrahub
 cp .env.example .env
 ```
