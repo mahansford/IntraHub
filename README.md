@@ -148,6 +148,18 @@ to-do/note, and adjusting leaderboard points with +/− — always stay open,
 even with a PIN set, since that's normal use rather than editing the
 layout.
 
+## Logo
+
+[public/logo.svg](public/logo.svg) is the default header wordmark — set as
+`logo_data_url` the same way any uploaded logo is, so it's fully replaceable
+from the Settings card. It's a self-contained SVG: the
+[Yellowtail](https://fonts.google.com/specimen/Yellowtail) typeface
+(© 2011 Brian J. Bonislawsky dba Astigmatic (AOETI), [SIL OFL 1.1](https://scripts.sil.org/OFL))
+is embedded as base64 `@font-face` data, so it renders correctly wherever
+the SVG is used — as a CSS background-image, an `<img>`, or opened
+directly — with no external font request and no dependency on what's
+installed on the viewer's device.
+
 ## Icons
 
 Every icon in the app — the section chrome (arrows, gear, trash, ...) and

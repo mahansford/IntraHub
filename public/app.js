@@ -437,6 +437,7 @@ function renderHeader() {
 
   const logoBox = document.getElementById('logo-box');
   logoBox.classList.toggle('editable', state.editMode);
+  logoBox.classList.toggle('custom-image', Boolean(state.settings.logo_data_url));
   if (state.settings.logo_data_url) {
     logoBox.style.backgroundImage = `url(${state.settings.logo_data_url})`;
     logoBox.textContent = '';
@@ -444,6 +445,9 @@ function renderHeader() {
     logoBox.style.backgroundImage = '';
     logoBox.textContent = initialsFromTitle(title);
   }
+  // A custom logo is usually a self-contained wordmark — showing the plain
+  // text title right next to it just repeats the same name twice.
+  document.getElementById('site-title').hidden = Boolean(state.settings.logo_data_url);
 
   document.getElementById('edit-toggle-icon').innerHTML = svgIcon(state.editMode ? 'square-check' : 'settings', 16);
   document.getElementById('edit-toggle-label').textContent = state.editMode ? 'Done' : 'Customize';
@@ -525,7 +529,7 @@ function renderSettingsCard() {
       <div>
         <div class="settings-group-label">Logo</div>
         <div style="display:flex; align-items:center; gap:12px;">
-          <div style="width:44px; height:44px; border-radius:13px; background:${s.logo_data_url ? `url(${s.logo_data_url}) center/cover` : 'linear-gradient(135deg, var(--primary), var(--accent))'}; display:flex; align-items:center; justify-content:center; font-weight:700; color:var(--on-primary); flex-shrink:0;">${s.logo_data_url ? '' : escapeHtml(initialsFromTitle(s.site_title))}</div>
+          <div style="${s.logo_data_url ? `height:60px; width:auto; min-width:44px; max-width:220px; background:url(${s.logo_data_url}) left center/contain no-repeat;` : `width:44px; height:44px; background:linear-gradient(135deg, var(--primary), var(--accent));`} border-radius:13px; display:flex; align-items:center; justify-content:center; font-weight:700; color:var(--on-primary); flex-shrink:0;">${s.logo_data_url ? '' : escapeHtml(initialsFromTitle(s.site_title))}</div>
           <button type="button" class="btn-secondary" data-action="upload-logo">${svgIcon('upload', 14)} Upload image</button>
         </div>
       </div>

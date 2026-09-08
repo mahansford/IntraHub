@@ -183,6 +183,22 @@ body {
   transform: scale(0.96);
 }
 
+/* A custom uploaded logo isn't necessarily square (e.g. a wordmark) — fall
+   back to a fixed-height, auto-width, letterboxed box instead of cropping
+   it to fit a square via background-size:cover. */
+.logo-box.custom-image {
+  width: auto;
+  height: 84px;
+  min-width: 48px;
+  max-width: 380px;
+  padding: 0 4px;
+  background: transparent;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: left center;
+  box-shadow: none;
+}
+
 #site-title {
   margin: 0;
   font-weight: 700;
