@@ -1,0 +1,42 @@
+services:
+  intranet:
+    build: .
+    # Once published, swap the two lines above for the published image
+    # instead of building locally:
+    # image: yourdockerhubusername/intrahub:latest
+    image: intrahub:latest
+    container_name: intrahub
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      # Mount your own config/local.yml here to seed a custom first-boot
+      # dashboard without rebuilding the image. See config/local.example.yml.
+      - ./config:/app/config:ro
+      # Read-only host mounts for the Server Stats card — gives true
+      # host-machine CPU/RAM/disk/uptime instead of just this container's
+      # own slice. Only works when Docker itself has a real Linux host to
+      # mount (a native Linux server, e.g.) — on Docker Desktop/OrbStack on
+      # macOS or Windows, "the host" as seen by Docker is their internal
+      # Linux VM, not literally macOS/Windows, so stats reflect the VM.
+      # Comment both lines out to run without them; the app falls back to
+      # container-only stats automatically.
+      - /proc:/hostproc:ro
+      - /:/hostfs:ro
+    environment:
+      PORT: 8080
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      # Optional: protects the ⚙️ Customize / edit mode with a PIN. Leave
+      # unset for no protection (fine for a trusted home network).
+      ADMIN_PIN: ${ADMIN_PIN}
+      # Shown in the footer, and required reading for AGPL compliance if you
+      # modify and redeploy this project — point it at your own fork/source.
+      SOURCE_URL: ${SOURCE_URL}
+      # Matches the volume mounts above — change only if you mount them
+      # somewhere else.
+      HOST_PROC_PATH: /hostproc
+      HOST_FS_PATH: /hostfs

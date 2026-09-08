@@ -1,0 +1,9 @@
+node_modules
+server/node_modules
+npm-debug.log
+.env
+.git
+# Personal config never gets baked into the image (even for a local `docker
+# build .`) — it's supplied at runtime via the docker-compose volume mount,
+# so a manually-pushed image can never leak someone's real household setup.
+config/local.yml

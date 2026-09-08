@@ -1,0 +1,46 @@
+# Generic default dashboard, seeded into the database on first boot only
+# (i.e. when the `sections` table is empty). After that, all changes are
+# made live through the in-page "Customize" edit mode and stored in Postgres
+# — this file is never read again.
+#
+# To ship your own starting point without touching the committed default,
+# copy config/local.example.yml to config/local.yml (gitignored) and edit
+# that instead — it takes priority over this file. See README.md.
+
+site:
+  site_title: "IntraHub"
+  weather_lat: "51.5074"
+  weather_lon: "-0.1278"
+  weather_location_name: "London"
+  # theme: one of neon | sunset | ocean | forest (defaults to neon if unset)
+  theme: "neon"
+
+sections:
+  - type: weather
+    title: Weather
+
+  - type: stats
+    title: Server Stats
+
+  - type: todo
+    title: "Today's Brief"
+    items:
+      - text: "Customize this dashboard from the ⚙️ Customize button"
+        done: false
+
+  - type: links
+    title: Quick Links
+    links:
+      - label: Example
+        icon: "🔗"
+        url: "#"
+
+  - type: leaderboard
+    title: Points Leaderboard
+    entries:
+      - name: Player 1
+        emoji: "🦊"
+        points: 0
+      - name: Player 2
+        emoji: "🐸"
+        points: 0

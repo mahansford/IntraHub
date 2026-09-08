@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title id="page-title">Home</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="ambient-glow ambient-glow-a" aria-hidden="true"></div>
+  <div class="ambient-glow ambient-glow-b" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <button id="logo-box" class="logo-box" type="button" title="Logo">FD</button>
+        <input type="file" id="logo-input" accept="image/*" hidden />
+        <h1 id="site-title">IntraHub</h1>
+      </div>
+      <div class="topbar-right">
+        <div class="clock">
+          <div id="clock-time">--:--</div>
+          <div id="clock-date">Loading date…</div>
+        </div>
+        <button id="edit-toggle" class="edit-toggle" type="button">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 13a7.6 7.6 0 0 0 .1-1 7.6 7.6 0 0 0-.1-1l2-1.6-2-3.4-2.3.9a7.4 7.4 0 0 0-1.7-1L15 3.5h-4l-.4 2.4a7.4 7.4 0 0 0-1.7 1l-2.3-.9-2 3.4L6.6 11a7.6 7.6 0 0 0-.1 1 7.6 7.6 0 0 0 .1 1l-2 1.6 2 3.4 2.3-.9a7.4 7.4 0 0 0 1.7 1l.4 2.4h4l.4-2.4a7.4 7.4 0 0 0 1.7-1l2.3.9 2-3.4-2-1.6Z"/></svg>
+          <span id="edit-toggle-label">Customize</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main id="dashboard" class="grid">
+    <p class="muted loading-placeholder">Loading dashboard…</p>
+  </main>
+
+  <footer class="footer">
+    <p>Made with <span class="heart">♥</span> for our family — <span id="footer-license">AGPL-3.0</span> ·
+      <a id="footer-source" href="#" target="_blank" rel="noopener">Source</a>
+    </p>
+  </footer>
+
+  <!-- PIN modal -->
+  <div id="pin-modal" class="modal-backdrop" hidden>
+    <div class="modal">
+      <h3>Enter admin PIN</h3>
+      <p class="muted small">Customizing this dashboard's layout needs the admin PIN.</p>
+      <form id="pin-form">
+        <input id="pin-input" type="password" inputmode="numeric" placeholder="PIN" autocomplete="off" />
+        <p id="pin-error" class="error-text small" hidden>Incorrect PIN, try again.</p>
+        <div class="modal-actions">
+          <button type="button" id="pin-cancel" class="btn-secondary">Cancel</button>
+          <button type="submit" class="btn-primary">Unlock</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

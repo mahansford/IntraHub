@@ -1,0 +1,55 @@
+# Copy this file to config/local.yml (gitignored) to seed your own dashboard
+# on first boot instead of the generic config/default.yml. Only used once,
+# when the database is empty — after that, edit live via the ⚙️ Customize
+# button in the UI.
+
+site:
+  site_title: "IntraHub"
+  weather_lat: "53.0027"
+  weather_lon: "-2.1794"
+  weather_location_name: "Stoke-on-Trent"
+  # theme: one of neon | sunset | ocean | forest
+  theme: "neon"
+
+sections:
+  - type: weather
+    title: Weather
+
+  - type: stats
+    title: Server Stats
+
+  - type: todo
+    title: "Today's Brief"
+    items: []
+
+  - type: links
+    title: Quick Links
+    links:
+      - label: Questly
+        icon: "🗺️"
+        url: "#"
+      - label: Today
+        icon: "📅"
+        url: "#"
+
+  - type: leaderboard
+    title: "Points Leaderboard"
+    entries:
+      - name: Kid 1
+        emoji: "🦊"
+        points: 0
+      - name: Kid 2
+        emoji: "🐸"
+        points: 0
+      - name: Kid 3
+        emoji: "🐝"
+        points: 0
+
+  - type: notes
+    title: Family Notes
+    notes: []
+
+  - type: countdown
+    title: Countdown
+    label: "Summer Holidays"
+    target_date: "2026-07-20"
