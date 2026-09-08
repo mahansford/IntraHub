@@ -436,14 +436,19 @@ function renderHeader() {
   document.getElementById('page-title').textContent = title;
 
   const logoBox = document.getElementById('logo-box');
+  const logoImg = document.getElementById('logo-img');
+  const logoInitials = document.getElementById('logo-initials');
   logoBox.classList.toggle('editable', state.editMode);
   logoBox.classList.toggle('custom-image', Boolean(state.settings.logo_data_url));
   if (state.settings.logo_data_url) {
-    logoBox.style.backgroundImage = `url(${state.settings.logo_data_url})`;
-    logoBox.textContent = '';
+    logoImg.src = state.settings.logo_data_url;
+    logoImg.hidden = false;
+    logoInitials.hidden = true;
   } else {
-    logoBox.style.backgroundImage = '';
-    logoBox.textContent = initialsFromTitle(title);
+    logoImg.hidden = true;
+    logoImg.src = '';
+    logoInitials.hidden = false;
+    logoInitials.textContent = initialsFromTitle(title);
   }
   // A custom logo is usually a self-contained wordmark — showing the plain
   // text title right next to it just repeats the same name twice.
@@ -529,7 +534,7 @@ function renderSettingsCard() {
       <div>
         <div class="settings-group-label">Logo</div>
         <div style="display:flex; align-items:center; gap:12px;">
-          <div style="${s.logo_data_url ? `height:60px; width:auto; min-width:44px; max-width:220px; background:url(${s.logo_data_url}) left center/contain no-repeat;` : `width:44px; height:44px; background:linear-gradient(135deg, var(--primary), var(--accent));`} border-radius:13px; display:flex; align-items:center; justify-content:center; font-weight:700; color:var(--on-primary); flex-shrink:0;">${s.logo_data_url ? '' : escapeHtml(initialsFromTitle(s.site_title))}</div>
+          <div style="${s.logo_data_url ? 'height:80px; width:auto; min-width:44px; max-width:280px;' : 'width:44px; height:44px; background:linear-gradient(135deg, var(--primary), var(--accent));'} border-radius:13px; display:flex; align-items:center; justify-content:center; font-weight:700; color:var(--on-primary); flex-shrink:0; overflow:hidden;">${s.logo_data_url ? `<img src="${escapeAttr(s.logo_data_url)}" alt="" style="height:100%; width:auto; display:block;" />` : escapeHtml(initialsFromTitle(s.site_title))}</div>
           <button type="button" class="btn-secondary" data-action="upload-logo">${svgIcon('upload', 14)} Upload image</button>
         </div>
       </div>

@@ -183,20 +183,25 @@ body {
   transform: scale(0.96);
 }
 
-/* A custom uploaded logo isn't necessarily square (e.g. a wordmark) — fall
-   back to a fixed-height, auto-width, letterboxed box instead of cropping
-   it to fit a square via background-size:cover. */
+/* A custom uploaded logo isn't necessarily square (e.g. a wordmark), so it's
+   a real <img> sized by height with width following its own aspect ratio —
+   background-image can't do that (it never affects a box's own auto width,
+   no matter what the background-size is), which is why an earlier version
+   of this stayed pinned at min-width regardless of the image's shape. */
 .logo-box.custom-image {
   width: auto;
-  height: 84px;
+  height: 140px;
   min-width: 48px;
-  max-width: 380px;
+  max-width: 520px;
   padding: 0 4px;
   background: transparent;
-  background-size: contain;
-  background-repeat: no-repeat;
-  background-position: left center;
   box-shadow: none;
+}
+
+.logo-box img {
+  height: 100%;
+  width: auto;
+  display: block;
 }
 
 #site-title {
@@ -1376,5 +1381,9 @@ body.kiosk-mode .footer {
   }
   .grid {
     padding: 0 18px 44px;
+  }
+  .logo-box.custom-image {
+    height: 84px;
+    max-width: 320px;
   }
 }
