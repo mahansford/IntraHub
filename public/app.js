@@ -11,9 +11,11 @@ const state = {
   lastStatsSampleAt: 0,
   kioskMode: false,
   kioskIndex: 0,
+  kioskAutoEntered: false,
 };
 
 let kioskTimer = null;
+let lastActivityAt = Date.now();
 let dragState = null; // { id, startIndex } while a section drag is in progress
 
 const THEMES = ['neon', 'sunset', 'ocean', 'forest'];
@@ -63,8 +65,8 @@ function escapeAttr(str) {
 }
 
 function initialsFromTitle(title) {
-  const words = (title || 'IntraHub').trim().split(/\s+/).filter(Boolean);
-  if (!words.length) return 'IH';
+  const words = (title || 'Alcove').trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return 'AL';
   if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
   return (words[0][0] + words[1][0]).toUpperCase();
 }
@@ -177,19 +179,65 @@ async function loadDashboard() {
 }
 
 // ---- Weather (fetched separately, filled into slots) ----
-async function loadAllWeather() {
-  const slots = document.querySelectorAll('[data-weather-slot]');
-  if (!slots.length) return;
-  try {
-    const w = await api('/api/weather');
-    const html = `
+// A single global tab/cache pair is enough since a dashboard normally has
+// one Weather section, and it keeps tab-switching instant (no refetch).
+let weatherActiveTab = 'now'; // 'now' | 'hourly' | 'daily'
+let lastWeatherData = null;
+
+function renderWeatherContent(w) {
+  const tabs = `
+    <div class="weather-tabs">
+      ${['now', 'hourly', 'daily']
+        .map(
+          (tab) =>
+            `<button type="button" class="weather-tab ${weatherActiveTab === tab ? 'active' : ''}" data-action="weather-tab" data-tab="${tab}">${tab === 'now' ? 'Now' : tab === 'hourly' ? 'Hourly' : '7-Day'}</button>`
+        )
+        .join('')}
+    </div>`;
+
+  let content;
+  if (weatherActiveTab === 'hourly') {
+    content = `<div class="weather-hourly-row">${(w.hourly || [])
+      .map(
+        (h) => `
+      <div class="weather-hour">
+        <div class="weather-hour-label">${h.hourLabel}</div>
+        ${svgIcon(h.icon, 20)}
+        <div class="weather-hour-temp">${h.tempC}°</div>
+      </div>`
+      )
+      .join('')}</div>`;
+  } else if (weatherActiveTab === 'daily') {
+    content = `<div class="weather-daily-list">${(w.daily || [])
+      .map(
+        (d) => `
+      <div class="weather-day-row">
+        <div class="weather-day-label">${d.dayLabel}</div>
+        ${svgIcon(d.icon, 18)}
+        <div class="weather-day-text">${escapeHtml(d.text)}</div>
+        <div class="weather-day-temps"><span class="weather-day-high">${d.tempHighC}°</span> <span class="muted">${d.tempLowC}°</span></div>
+      </div>`
+      )
+      .join('')}</div>`;
+  } else {
+    content = `
       <span class="weather-icon">${svgIcon(w.current.icon, 46)}</span>
       <div>
         <div class="weather-temp">${w.currentTempC}°C</div>
         <div class="weather-meta">${w.current.text} · ${escapeHtml(w.location)}</div>
         <div class="weather-meta mono">H ${w.todayHighC}° · L ${w.todayLowC}°</div>
       </div>`;
-    slots.forEach((el) => (el.innerHTML = html));
+  }
+  return tabs + `<div class="weather-content">${content}</div>`;
+}
+
+async function loadAllWeather() {
+  const slots = document.querySelectorAll('[data-weather-slot]');
+  if (!slots.length) return;
+  try {
+    const w = await api('/api/weather');
+    lastWeatherData = w;
+    slots.forEach((el) => (el.innerHTML = renderWeatherContent(w)));
   } catch (err) {
     slots.forEach((el) => (el.innerHTML = `<p class="error-text">Couldn't load weather right now.</p>`));
   }
@@ -431,7 +479,7 @@ function applyBackground() {
 }
 
 function renderHeader() {
-  const title = state.settings.site_title || 'IntraHub';
+  const title = state.settings.site_title || 'Alcove';
   document.getElementById('site-title').textContent = title;
   document.getElementById('page-title').textContent = title;
 
@@ -478,47 +526,122 @@ function renderDashboard() {
 }
 
 // ---- Kiosk mode: auto-cycling fullscreen view for a wall-mounted tablet ----
+// The kiosk "playlist" is enabled sections that haven't been individually
+// excluded from rotation (kiosk_enabled === false) via the per-section toggle.
+function kioskSections() {
+  return state.sections.filter((s) => s.enabled && s.kiosk_enabled !== false);
+}
+
 function renderKiosk() {
   const root = document.getElementById('dashboard');
   root.classList.add('kiosk-active');
-  const enabled = state.sections.filter((s) => s.enabled);
+  const enabled = kioskSections();
   if (!enabled.length) {
     root.innerHTML = `<p class="muted">Nothing enabled to show in kiosk mode.</p>`;
     return;
   }
   if (state.kioskIndex >= enabled.length) state.kioskIndex = 0;
   const section = enabled[state.kioskIndex];
+  // Kiosk is always a read-only wall display — section body renderers key
+  // off state.editMode directly, so suppress it here even if edit mode was
+  // left on when kiosk mode was entered (its own chrome is hidden the same
+  // way via the "&& !state.kioskMode" check in renderSection's header).
+  const wasEditing = state.editMode;
+  state.editMode = false;
+  const sectionHtml = renderSection(section);
+  state.editMode = wasEditing;
+  const dots =
+    enabled.length > 1
+      ? `<div class="kiosk-dots">${enabled
+          .map((_, i) => `<span class="kiosk-dot ${i === state.kioskIndex ? 'active' : ''}"></span>`)
+          .join('')}</div>`
+      : '';
+  // Auto-entered (idle-triggered) kiosk acts like a screensaver: the card
+  // becomes non-interactive and a tap anywhere dismisses it, instead of
+  // requiring the small × button.
   root.innerHTML = `
     <button type="button" class="kiosk-exit" data-action="exit-kiosk" title="Exit kiosk mode">${svgIcon('x', 16)}</button>
-    <div class="kiosk-view">${renderSection(section)}</div>
+    <div class="kiosk-view ${state.kioskAutoEntered ? 'kiosk-ambient' : ''}"${state.kioskAutoEntered ? ' data-action="exit-kiosk"' : ''}>${sectionHtml}</div>
+    ${dots}
   `;
+  scheduleKioskAdvance();
 }
 
-function enterKiosk() {
+function scheduleKioskAdvance() {
+  if (kioskTimer) clearTimeout(kioskTimer);
+  const enabled = kioskSections();
+  if (enabled.length <= 1) return;
+  const section = enabled[state.kioskIndex] || enabled[0];
+  const seconds = section.kiosk_duration_seconds || Number(state.settings.kiosk_default_duration) || 12;
+  kioskTimer = setTimeout(() => {
+    const list = kioskSections();
+    if (!list.length) return;
+    state.kioskIndex = (state.kioskIndex + 1) % list.length;
+    render();
+  }, seconds * 1000);
+}
+
+function enterKiosk(auto = false) {
   state.kioskMode = true;
   state.kioskIndex = 0;
+  state.kioskAutoEntered = auto;
   document.body.classList.add('kiosk-mode');
-  if (kioskTimer) clearInterval(kioskTimer);
-  kioskTimer = setInterval(() => {
-    const enabledCount = state.sections.filter((s) => s.enabled).length;
-    if (!enabledCount) return;
-    state.kioskIndex = (state.kioskIndex + 1) % enabledCount;
-    render();
-  }, 12000);
+  checkNightDim();
   render();
 }
 
 function exitKiosk() {
   state.kioskMode = false;
+  state.kioskAutoEntered = false;
   document.body.classList.remove('kiosk-mode');
+  document.body.classList.remove('kiosk-dim');
   if (kioskTimer) {
-    clearInterval(kioskTimer);
+    clearTimeout(kioskTimer);
     kioskTimer = null;
   }
+  lastActivityAt = Date.now();
   render();
 }
 
-document.getElementById('kiosk-toggle').addEventListener('click', enterKiosk);
+document.getElementById('kiosk-toggle').addEventListener('click', () => enterKiosk(false));
+
+// ---- Kiosk ambient auto-entry (idle timeout) + night dimming ----
+['mousemove', 'mousedown', 'touchstart', 'keydown', 'wheel'].forEach((evt) => {
+  document.addEventListener(evt, () => {
+    lastActivityAt = Date.now();
+  }, { passive: true });
+});
+
+function checkIdleKiosk() {
+  if (state.kioskMode) return;
+  const minutes = Number(state.settings.kiosk_idle_minutes);
+  if (!minutes || minutes <= 0) return;
+  if (Date.now() - lastActivityAt >= minutes * 60_000) enterKiosk(true);
+}
+
+function checkNightDim() {
+  const start = state.settings.kiosk_night_start;
+  const end = state.settings.kiosk_night_end;
+  if (!state.kioskMode || !start || !end) {
+    document.body.classList.remove('kiosk-dim');
+    return;
+  }
+  const [sh, sm] = start.split(':').map(Number);
+  const [eh, em] = end.split(':').map(Number);
+  if ([sh, sm, eh, em].some((n) => Number.isNaN(n))) {
+    document.body.classList.remove('kiosk-dim');
+    return;
+  }
+  const now = new Date();
+  const cur = now.getHours() * 60 + now.getMinutes();
+  const s = sh * 60 + sm;
+  const e = eh * 60 + em;
+  const dim = s === e ? false : s < e ? cur >= s && cur < e : cur >= s || cur < e;
+  document.body.classList.toggle('kiosk-dim', dim);
+}
+
+setInterval(checkIdleKiosk, 30_000);
+setInterval(checkNightDim, 60_000);
 
 function renderSettingsCard() {
   const s = state.settings;
@@ -534,7 +657,7 @@ function renderSettingsCard() {
       <div>
         <div class="settings-group-label">Logo</div>
         <div style="display:flex; align-items:center; gap:12px;">
-          <div style="${s.logo_data_url ? 'height:80px; width:auto; min-width:44px; max-width:280px;' : 'width:44px; height:44px; background:linear-gradient(135deg, var(--primary), var(--accent));'} border-radius:13px; display:flex; align-items:center; justify-content:center; font-weight:700; color:var(--on-primary); flex-shrink:0; overflow:hidden;">${s.logo_data_url ? `<img src="${escapeAttr(s.logo_data_url)}" alt="" style="height:100%; width:auto; display:block;" />` : escapeHtml(initialsFromTitle(s.site_title))}</div>
+          <div style="${s.logo_data_url ? 'height:80px; width:auto; min-width:44px; max-width:280px;' : 'width:44px; height:44px; background:var(--brand-gradient);'} border-radius:13px; display:flex; align-items:center; justify-content:center; font-weight:700; color:var(--on-brand-gradient); flex-shrink:0; overflow:hidden;">${s.logo_data_url ? `<img src="${escapeAttr(s.logo_data_url)}" alt="" style="height:100%; width:auto; display:block;" />` : escapeHtml(initialsFromTitle(s.site_title))}</div>
           <button type="button" class="btn-secondary" data-action="upload-logo">${svgIcon('upload', 14)} Upload image</button>
         </div>
       </div>
@@ -574,6 +697,18 @@ function renderSettingsCard() {
       </label>
       <label>Longitude
         <input name="weather_lon" value="${escapeAttr(s.weather_lon || '')}" />
+      </label>
+      <label>Kiosk: default seconds per section
+        <input name="kiosk_default_duration" type="number" min="3" max="600" placeholder="12" value="${escapeAttr(s.kiosk_default_duration || '')}" />
+      </label>
+      <label>Kiosk: auto-start after idle minutes (blank = off)
+        <input name="kiosk_idle_minutes" type="number" min="1" max="1440" placeholder="off" value="${escapeAttr(s.kiosk_idle_minutes || '')}" />
+      </label>
+      <label>Kiosk: dim from
+        <input name="kiosk_night_start" type="time" value="${escapeAttr(s.kiosk_night_start || '')}" />
+      </label>
+      <label>Kiosk: dim until
+        <input name="kiosk_night_end" type="time" value="${escapeAttr(s.kiosk_night_end || '')}" />
       </label>
       <div class="modal-actions">
         <button type="submit" class="btn-primary">Save settings</button>
@@ -623,6 +758,16 @@ function renderSection(section) {
         <button type="button" class="icon-btn" data-action="move-up" title="Move up">${svgIcon('arrow-up', 13)}</button>
         <button type="button" class="icon-btn" data-action="move-down" title="Move down">${svgIcon('arrow-down', 13)}</button>
         <button type="button" class="icon-btn" data-action="toggle-enabled" title="${section.enabled ? 'Hide' : 'Show'}">${svgIcon(section.enabled ? 'eye' : 'eye-off', 13)}</button>
+        <div class="size-picker">
+          ${['small', 'medium', 'large']
+            .map(
+              (sz) =>
+                `<button type="button" class="size-btn ${((section.card_size || 'medium') === sz) ? 'selected' : ''}" data-action="set-card-size" data-size="${sz}" title="${sz[0].toUpperCase() + sz.slice(1)} card">${sz[0].toUpperCase()}</button>`
+            )
+            .join('')}
+        </div>
+        <button type="button" class="icon-btn ${section.kiosk_enabled === false ? 'kiosk-toggle-off' : ''}" data-action="toggle-kiosk-enabled" title="${section.kiosk_enabled === false ? 'Excluded from kiosk rotation — click to include' : 'Shown in kiosk rotation — click to exclude'}">${svgIcon('monitor', 13)}</button>
+        <input type="number" class="kiosk-duration-input" data-action="set-kiosk-duration" min="3" max="600" placeholder="${Number(state.settings.kiosk_default_duration) || 12}s" value="${section.kiosk_duration_seconds || ''}" title="Seconds to show this section in kiosk mode (blank = dashboard default)" />
         <button type="button" class="icon-btn danger" data-action="delete-section" title="Delete section">${svgIcon('trash', 13)}</button>
       </div>
     </div>`
@@ -642,14 +787,15 @@ function renderSection(section) {
   else if (section.type === 'calendar') body = renderCalendarBody(section);
 
   const accentStyle = section.accent_color ? ` style="--accent:${escapeAttr(section.accent_color)};"` : '';
-  return `<section class="card section ${hiddenClass}" data-section-id="${section.id}" data-type="${section.type}"${accentStyle}>
+  const sizeClass = `card-size-${['small', 'medium', 'large'].includes(section.card_size) ? section.card_size : 'medium'}`;
+  return `<section class="card section ${sizeClass} ${hiddenClass}" data-section-id="${section.id}" data-type="${section.type}"${accentStyle}>
     ${header}
     <div class="section-body">${body}</div>
   </section>`;
 }
 
 function renderWeatherBody() {
-  return `<div class="weather-body" data-weather-slot><p class="muted">Loading weather…</p></div>`;
+  return `<div class="weather-body" data-weather-slot>${lastWeatherData ? renderWeatherContent(lastWeatherData) : '<p class="muted">Loading weather…</p>'}</div>`;
 }
 
 function renderStatsBody() {
@@ -1231,6 +1377,14 @@ dashboard.addEventListener('click', async (e) => {
       return;
     }
 
+    if (action === 'weather-tab') {
+      weatherActiveTab = target.dataset.tab;
+      if (lastWeatherData) {
+        document.querySelectorAll('[data-weather-slot]').forEach((el) => (el.innerHTML = renderWeatherContent(lastWeatherData)));
+      }
+      return;
+    }
+
     if (action === 'set-theme') {
       const theme = target.dataset.themeValue;
       await api('/api/settings', { method: 'PATCH', body: JSON.stringify({ theme }) });
@@ -1320,6 +1474,21 @@ dashboard.addEventListener('click', async (e) => {
       const id = sectionIdOf(target);
       const section = state.sections.find((s) => String(s.id) === String(id));
       await api(`/api/sections/${id}`, { method: 'PATCH', body: JSON.stringify({ enabled: !section.enabled }) });
+      await loadDashboard();
+      return;
+    }
+
+    if (action === 'toggle-kiosk-enabled') {
+      const id = sectionIdOf(target);
+      const section = state.sections.find((s) => String(s.id) === String(id));
+      await api(`/api/sections/${id}`, { method: 'PATCH', body: JSON.stringify({ kiosk_enabled: section.kiosk_enabled === false }) });
+      await loadDashboard();
+      return;
+    }
+
+    if (action === 'set-card-size') {
+      const id = sectionIdOf(target);
+      await api(`/api/sections/${id}`, { method: 'PATCH', body: JSON.stringify({ card_size: target.dataset.size }) });
       await loadDashboard();
       return;
     }
@@ -1425,6 +1594,14 @@ dashboard.addEventListener('change', async (e) => {
       const title = e.target.value.trim();
       if (!title) return;
       await api(`/api/sections/${id}`, { method: 'PATCH', body: JSON.stringify({ title }) });
+      return; // no reload needed, value already reflects intent
+    }
+
+    if (e.target.dataset.action === 'set-kiosk-duration') {
+      const id = sectionIdOf(e.target);
+      const raw = e.target.value.trim();
+      const seconds = raw ? Number(raw) : null;
+      await api(`/api/sections/${id}`, { method: 'PATCH', body: JSON.stringify({ kiosk_duration_seconds: seconds }) });
       return; // no reload needed, value already reflects intent
     }
 

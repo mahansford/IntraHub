@@ -3,9 +3,9 @@ services:
     build: .
     # Once published, swap the two lines above for the published image
     # instead of building locally:
-    # image: yourdockerhubusername/intrahub:latest
-    image: intrahub:latest
-    container_name: intrahub
+    # image: yourdockerhubusername/alcove:latest
+    image: alcove:latest
+    container_name: alcove
     restart: unless-stopped
     ports:
       - "8080:8080"

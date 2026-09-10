@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="alcoveBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6d2f66"/>
+      <stop offset="50%" stop-color="#4a3874"/>
+      <stop offset="100%" stop-color="#2c3f73"/>
+    </linearGradient>
+    <radialGradient id="alcoveGlow" cx="50%" cy="38%" r="55%">
+      <stop offset="0%" stop-color="#fff7e0" stop-opacity="0.85"/>
+      <stop offset="55%" stop-color="#fff2c4" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#fff2c4" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="alcoveShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#0a0a14" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+
+  <rect x="0" y="0" width="512" height="512" rx="112" fill="url(#alcoveBg)"/>
+  <circle cx="256" cy="255" r="150" fill="url(#alcoveGlow)"/>
+
+  <path d="M180,392 L180,246 A76,76 0 0 1 332,246 L332,392 Z"
+        fill="none" stroke="#0f1220" stroke-width="26" stroke-linejoin="round" filter="url(#alcoveShadow)"/>
+  <path d="M180,392 L180,246 A76,76 0 0 1 332,246 L332,392 Z"
+        fill="#12141f" opacity="0.92"/>
+
+  <circle cx="256" cy="300" r="14" fill="#ffe9a8"/>
+</svg>

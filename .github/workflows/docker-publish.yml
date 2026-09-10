@@ -8,7 +8,7 @@ name: Build and publish Docker image
 #   DOCKERHUB_TOKEN     — a Docker Hub access token (not your password)
 #
 # Update DOCKERHUB_IMAGE below to your actual namespace/image before your
-# first release, e.g. "janedoe/intrahub".
+# first release, e.g. "janedoe/alcove".
 
 on:
   push:
@@ -17,7 +17,7 @@ on:
   workflow_dispatch: {}
 
 env:
-  DOCKERHUB_IMAGE: yourdockerhubusername/intrahub
+  DOCKERHUB_IMAGE: yourdockerhubusername/alcove
 
 jobs:
   build-and-push:

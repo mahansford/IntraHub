@@ -4,7 +4,7 @@
 # button in the UI.
 
 site:
-  site_title: "IntraHub"
+  site_title: "Alcove"
   weather_lat: "53.0027"
   weather_lon: "-2.1794"
   weather_location_name: "Stoke-on-Trent"

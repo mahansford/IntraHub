@@ -15,6 +15,11 @@
   --glow-opacity: 0.16;
   --radius: 20px;
   --gap: 18px;
+  /* A subtler, single-family plum-to-indigo blend for brand elements
+     (buttons, header logo, theme swatch) instead of the bolder, more
+     obviously two-toned pink-to-cyan --primary/--accent pairing. */
+  --brand-gradient: linear-gradient(135deg, #6d2f66 0%, #4a3874 50%, #2c3f73 100%);
+  --on-brand-gradient: #f2f3fb;
 }
 
 [data-theme="sunset"] {
@@ -31,6 +36,8 @@
   --row-border: transparent;
   --on-primary: #ffffff;
   --glow-opacity: 0;
+  --brand-gradient: linear-gradient(135deg, var(--primary), var(--accent));
+  --on-brand-gradient: var(--on-primary);
 }
 
 [data-theme="ocean"] {
@@ -47,6 +54,8 @@
   --row-border: rgba(150, 210, 230, 0.1);
   --on-primary: #071019;
   --glow-opacity: 0.14;
+  --brand-gradient: linear-gradient(135deg, var(--primary), var(--accent));
+  --on-brand-gradient: var(--on-primary);
 }
 
 [data-theme="forest"] {
@@ -63,6 +72,8 @@
   --row-border: rgba(170, 220, 180, 0.1);
   --on-primary: #08150a;
   --glow-opacity: 0.14;
+  --brand-gradient: linear-gradient(135deg, var(--primary), var(--accent));
+  --on-brand-gradient: var(--on-primary);
 }
 
 :root {
@@ -160,7 +171,7 @@ body {
   height: 48px;
   border-radius: 14px;
   border: none;
-  background: linear-gradient(135deg, var(--primary), var(--accent));
+  background: var(--brand-gradient);
   background-size: cover;
   background-position: center;
   display: flex;
@@ -169,7 +180,7 @@ body {
   font-family: 'Space Grotesk', sans-serif;
   font-weight: 700;
   font-size: 1.05rem;
-  color: var(--on-primary);
+  color: var(--on-brand-gradient);
   box-shadow: 0 0 26px var(--primary-glow);
   cursor: default;
   flex-shrink: 0;
@@ -283,6 +294,28 @@ body {
   padding: 22px 24px;
 }
 
+.section.card-size-large {
+  grid-column: span 2;
+}
+
+.section.card-size-small {
+  padding: 14px 16px;
+}
+
+.section.card-size-small .section-body {
+  font-size: 0.9em;
+}
+
+.section.card-size-small h2 {
+  font-size: 0.94rem;
+}
+
+@media (max-width: 680px) {
+  .section.card-size-large {
+    grid-column: span 1;
+  }
+}
+
 .card h2 {
   margin: 0;
   font-weight: 600;
@@ -327,7 +360,10 @@ body {
 
 .section-controls {
   display: flex;
+  align-items: center;
   gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .icon-btn {
@@ -349,6 +385,34 @@ body {
   border-color: var(--danger-border);
   background: var(--danger-faint);
   color: var(--danger);
+}
+
+.size-picker {
+  display: flex;
+  gap: 3px;
+}
+
+.size-btn {
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  border: 1px solid var(--card-border);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.size-btn.selected {
+  background: var(--accent-faint);
+  border-color: var(--accent-border);
+  color: var(--accent);
 }
 
 .muted {
@@ -421,6 +485,34 @@ body {
 /* Weather */
 .weather-body {
   display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.weather-tabs {
+  display: flex;
+  gap: 6px;
+}
+
+.weather-tab {
+  padding: 5px 12px;
+  border-radius: 20px;
+  border: 1px solid var(--card-border);
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.weather-tab.active {
+  background: var(--accent-faint);
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+
+.weather-content {
+  display: flex;
   align-items: center;
   gap: 18px;
   flex-wrap: wrap;
@@ -443,6 +535,78 @@ body {
   color: var(--muted);
   font-size: 0.88rem;
   margin-top: 6px;
+}
+
+.weather-hourly-row {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  width: 100%;
+}
+
+.weather-hour {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  min-width: 40px;
+  color: var(--accent);
+}
+
+.weather-hour-label {
+  font-size: 0.7rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.weather-hour-temp {
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.weather-daily-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.weather-day-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--muted);
+}
+
+.weather-day-label {
+  width: 60px;
+  flex-shrink: 0;
+  font-size: 0.85rem;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.weather-day-text {
+  flex: 1;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.weather-day-temps {
+  display: flex;
+  gap: 6px;
+  font-size: 0.85rem;
+  font-family: 'JetBrains Mono', monospace;
+  flex-shrink: 0;
+}
+
+.weather-day-high {
+  color: var(--text);
+  font-weight: 600;
 }
 
 /* Today / to-do list */
@@ -533,8 +697,8 @@ body {
   padding: 11px 18px;
   border: none;
   border-radius: 12px;
-  background: linear-gradient(135deg, var(--primary), var(--accent));
-  color: var(--on-primary);
+  background: var(--brand-gradient);
+  color: var(--on-brand-gradient);
   font-weight: 700;
   font-size: 0.9rem;
   cursor: pointer;
@@ -1008,7 +1172,7 @@ body {
   box-shadow: 0 0 0 2px var(--text), 0 0 14px var(--primary-glow);
 }
 
-.theme-swatch-fill.theme-swatch-neon { background: linear-gradient(135deg, #ff3ec9, #22e8ff); }
+.theme-swatch-fill.theme-swatch-neon { background: linear-gradient(135deg, #6d2f66 0%, #4a3874 50%, #2c3f73 100%); }
 .theme-swatch-fill.theme-swatch-sunset { background: linear-gradient(135deg, #ff8a5b, #4fb0a5); }
 .theme-swatch-fill.theme-swatch-ocean { background: linear-gradient(135deg, #2563eb, #06b6d4); }
 .theme-swatch-fill.theme-swatch-forest { background: linear-gradient(135deg, #16a34a, #84cc16); }
@@ -1357,6 +1521,68 @@ body.kiosk-mode .footer {
 
 .kiosk-view .section-header-title h2 {
   font-size: 1.3rem;
+}
+
+.kiosk-view {
+  animation: kiosk-fade 0.6s ease;
+}
+
+@keyframes kiosk-fade {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.kiosk-dots {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.kiosk-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--card-border);
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.kiosk-dot.active {
+  background: var(--accent);
+  transform: scale(1.3);
+}
+
+/* Ambient (idle-triggered) kiosk acts as a screensaver: the card ignores
+   taps so any touch falls through to the exit handler on its wrapper. */
+.kiosk-view.kiosk-ambient .card {
+  pointer-events: none;
+}
+
+body.kiosk-dim {
+  filter: brightness(0.45);
+  transition: filter 1.5s ease;
+}
+
+.kiosk-duration-input {
+  width: 44px;
+  padding: 4px 5px;
+  border-radius: 8px;
+  border: 1px solid var(--card-border);
+  background: var(--row-bg);
+  color: var(--text);
+  font-size: 0.78rem;
+  font-family: 'Space Grotesk', sans-serif;
+  text-align: center;
+}
+
+.icon-btn.kiosk-toggle-off {
+  opacity: 0.4;
 }
 
 .kiosk-exit {
