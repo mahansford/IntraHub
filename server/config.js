@@ -34,7 +34,7 @@ function loadSeedConfig() {
 function builtInDefaults() {
   return {
     site: {
-      title: 'IntraHub',
+      title: 'Alcove',
       weather_lat: '51.5074',
       weather_lon: '-0.1278',
       weather_location_name: 'London',

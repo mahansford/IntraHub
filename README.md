@@ -1,4 +1,4 @@
-# IntraHub
+# Alcove
 
 A self-hosted, family-friendly home dashboard: weather, server stats,
 stocks, a customisable to-do list, links, notes board, countdown, points
@@ -16,9 +16,12 @@ Licensed under [AGPL-3.0-or-later](LICENSE).
 ## Features
 
 - **Customisable sections** — add, remove, rename, drag-and-drop reorder,
-  hide, or give a custom accent color to any number of Weather / Server
-  Stats / Stocks / To-do / Links / Notes / Countdown / Leaderboard / Chores
-  / Photos / Calendar sections, straight from the dashboard.
+  hide, resize (small / medium / large), or give a custom accent color to
+  any number of Weather / Server Stats / Stocks / To-do / Links / Notes /
+  Countdown / Leaderboard / Chores / Photos / Calendar sections, straight
+  from the dashboard.
+- **Weather** — current conditions plus tap-through Hourly and 7-Day
+  forecast views on the same card, powered by [Open-Meteo](https://open-meteo.com/).
 - **Stocks** — a small watchlist card with live price and today's move per
   ticker (see [Stocks](#stocks) below for the free API key it needs).
 - **Chores** — a per-kid checklist that resets itself every day (no cron
@@ -28,8 +31,10 @@ Licensed under [AGPL-3.0-or-later](LICENSE).
 - **Calendar** — upcoming events from any public `.ics` feed (see
   [Calendar](#calendar) below for what it does and doesn't parse).
 - **Kiosk mode** — a fullscreen, auto-cycling, chrome-free view built for a
-  wall-mounted tablet — tap the monitor icon in the header, tap the × to
-  exit.
+  wall-mounted tablet, with a curated rotation, a per-section timing, a
+  crossfade + progress dots between cards, an idle auto-start that dims
+  itself into an ambient screensaver, and a night dimming schedule (see
+  [Kiosk mode](#kiosk-mode) below).
 - **Backup & restore** — download the whole dashboard as a YAML file from
   the Settings card, and restore it (or a fresh clone's `config/local.yml`
   seed, in the same format) from there too.
@@ -90,14 +95,14 @@ tablet on the same network.
 
 Once this project has a Docker Hub release (see
 [Publishing](#publishing-to-docker-hub)), you can skip building locally —
-edit `docker-compose.yml` to use `image: yourdockerhubusername/intrahub:latest`
+edit `docker-compose.yml` to use `image: yourdockerhubusername/alcove:latest`
 instead of `build: .`, or run directly:
 
 ```bash
-docker run -d --name intrahub -p 8080:8080 \
+docker run -d --name alcove -p 8080:8080 \
   --env-file .env \
   -v ./config:/app/config:ro \
-  yourdockerhubusername/intrahub:latest
+  yourdockerhubusername/alcove:latest
 ```
 
 ## Configuration
@@ -130,8 +135,9 @@ Environment variables (`.env`, see `.env.example`):
 Click **Customize** in the header (enter the PIN if you set one).
 While in edit mode you can:
 
-- Rename, drag-and-drop reorder (grab the grip handle), hide, delete, or
-  set a custom accent color for any section
+- Rename, drag-and-drop reorder (grab the grip handle), hide, delete, resize
+  (the S/M/L buttons — Large spans two grid columns), set a custom accent
+  color, or set the kiosk-mode rotation/duration for any section
 - Add a new section (pick a type and a title, bottom of the page)
 - Add/edit/delete links within a Links section, picking each icon from the
   built-in picker
@@ -139,8 +145,9 @@ While in edit mode you can:
 - Add/remove kids and their chores within a Chores section
 - Upload/delete photos within a Photos section
 - Set the feed URL for a Calendar section
-- Edit the dashboard title, weather location, theme, logo and background
-  image in the Settings card
+- Edit the dashboard title, weather location, theme, logo, background
+  image, and kiosk mode's default duration/idle auto-start/night dimming
+  in the Settings card
 - Download or restore a full backup from the Settings card
 
 Day-to-day interactions — ticking off a to-do or chore item, adding a
@@ -160,6 +167,12 @@ the SVG is used — as a CSS background-image, an `<img>`, or opened
 directly — with no external font request and no dependency on what's
 installed on the viewer's device.
 
+[public/icon.svg](public/icon.svg) is the square app icon (favicon /
+home-screen icon) — a lit niche mark on a muted plum-to-indigo gradient,
+separate from the wordmark above since a small icon needs a simpler symbol
+rather than shrunk-down script text. It's wired up in `index.html` as the
+page favicon and apple-touch-icon. Pure vector shapes, no embedded font.
+
 ## Icons
 
 Every icon in the app — the section chrome (arrows, gear, trash, ...) and
@@ -172,6 +185,32 @@ for that picker (see `ICON_PICKER_NAMES` in `public/icons.js`) out of the
 full set bundled for the app's own chrome. Add more by fetching the SVG
 from `https://raw.githubusercontent.com/lucide-icons/lucide/main/icons/<name>.svg`
 and adding it to `ICON_PATHS`.
+
+## Kiosk mode
+
+Tap the monitor icon in the header for a fullscreen, chrome-free view that
+auto-cycles through your sections — built for a tablet mounted on a wall.
+Tap the × to exit.
+
+- **Curated playlist** — each section has a small monitor icon next to its
+  edit controls; click it to exclude that section from the kiosk rotation
+  without hiding it from the normal dashboard.
+- **Per-section duration** — the small number field next to that icon sets
+  how many seconds that section gets in kiosk mode (blank = the dashboard-
+  wide default, set in the Settings card).
+- **Transitions** — cards crossfade in as kiosk mode advances, with a row
+  of progress dots underneath showing where you are in the rotation.
+- **Idle auto-start** — set "auto-start after idle minutes" in Settings and
+  kiosk mode kicks in on its own after that much time with no touch/mouse/
+  keyboard activity. An idle-triggered session behaves like a screensaver:
+  the card ignores taps (so nothing gets toggled by accident) and a single
+  tap anywhere dismisses it, rather than needing the × specifically.
+  Entering kiosk mode manually via the header button doesn't do this — the
+  section stays fully interactive and only the × exits.
+- **Night dimming** — set a "dim from"/"dim until" time in Settings (e.g.
+  22:00–07:00) and kiosk mode dims the whole screen during those hours,
+  for a bedside or hallway tablet at night. Only applies while in kiosk
+  mode.
 
 ## Server Stats
 
@@ -237,7 +276,7 @@ Or build/push manually:
 
 ```bash
 docker buildx build --platform linux/amd64,linux/arm64 \
-  -t yourdockerhubusername/intrahub:latest --push .
+  -t yourdockerhubusername/alcove:latest --push .
 ```
 
 ## License

@@ -59,7 +59,7 @@ function parseIcs(text) {
 }
 
 async function getCalendarEvents(icsUrl, { limit = 8, withinDays = 60 } = {}) {
-  const resp = await fetch(icsUrl, { headers: { 'User-Agent': 'IntraHub/1.0' } });
+  const resp = await fetch(icsUrl, { headers: { 'User-Agent': 'Alcove/1.0' } });
   if (!resp.ok) throw new Error(`Calendar feed responded ${resp.status}`);
   const text = await resp.text();
   const events = parseIcs(text);

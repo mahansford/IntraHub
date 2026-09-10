@@ -8,7 +8,7 @@
 # that instead — it takes priority over this file. See README.md.
 
 site:
-  site_title: "IntraHub"
+  site_title: "Alcove"
   weather_lat: "51.5074"
   weather_lon: "-0.1278"
   weather_location_name: "London"

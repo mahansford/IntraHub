@@ -48,6 +48,13 @@ async function ensureSchema() {
   // ALTER ... IF NOT EXISTS so it's safe to run against an already-seeded
   // database, not just a fresh one.
   await pool.query(`ALTER TABLE sections ADD COLUMN IF NOT EXISTS accent_color TEXT;`);
+  // Kiosk-mode rotation controls, added after the initial release — a
+  // section can be left out of the kiosk playlist entirely, or given its
+  // own display duration instead of the global default.
+  await pool.query(`ALTER TABLE sections ADD COLUMN IF NOT EXISTS kiosk_enabled BOOLEAN NOT NULL DEFAULT TRUE;`);
+  await pool.query(`ALTER TABLE sections ADD COLUMN IF NOT EXISTS kiosk_duration_seconds INTEGER;`);
+  // Card size on the main dashboard grid — 'small' | 'medium' | 'large'.
+  await pool.query(`ALTER TABLE sections ADD COLUMN IF NOT EXISTS card_size TEXT NOT NULL DEFAULT 'medium';`);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS links (
@@ -207,9 +214,18 @@ async function seedFromConfig(config) {
       if (!SECTION_TYPES.includes(section.type)) continue;
       order += 1;
       const { rows } = await client.query(
-        `INSERT INTO sections (type, title, enabled, sort_order, accent_color)
-         VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-        [section.type, section.title || section.type, section.enabled !== false, order, section.accent_color || null]
+        `INSERT INTO sections (type, title, enabled, sort_order, accent_color, kiosk_enabled, kiosk_duration_seconds, card_size)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+        [
+          section.type,
+          section.title || section.type,
+          section.enabled !== false,
+          order,
+          section.accent_color || null,
+          section.kiosk_enabled !== false,
+          Number.isFinite(section.kiosk_duration_seconds) ? section.kiosk_duration_seconds : null,
+          ['small', 'medium', 'large'].includes(section.card_size) ? section.card_size : 'medium',
+        ]
       );
       const sectionId = rows[0].id;
 
@@ -318,7 +334,7 @@ async function seedFromConfig(config) {
 async function buildBackupObject() {
   const settings = await getSettings();
   const { rows: sections } = await pool.query(
-    'SELECT id, type, title, enabled, sort_order, accent_color FROM sections ORDER BY sort_order ASC, id ASC'
+    'SELECT id, type, title, enabled, sort_order, accent_color, kiosk_enabled, kiosk_duration_seconds, card_size FROM sections ORDER BY sort_order ASC, id ASC'
   );
 
   const out = { site: settings, sections: [] };
@@ -326,6 +342,9 @@ async function buildBackupObject() {
   for (const section of sections) {
     const base = { type: section.type, title: section.title, enabled: section.enabled };
     if (section.accent_color) base.accent_color = section.accent_color;
+    if (!section.kiosk_enabled) base.kiosk_enabled = false;
+    if (section.kiosk_duration_seconds) base.kiosk_duration_seconds = section.kiosk_duration_seconds;
+    if (section.card_size && section.card_size !== 'medium') base.card_size = section.card_size;
 
     if (section.type === 'links') {
       const { rows } = await pool.query(

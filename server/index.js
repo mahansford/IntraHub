@@ -98,6 +98,21 @@ const WEATHER_CODES = {
   99: { text: 'Thunderstorm', icon: 'cloud-lightning' },
 };
 
+// Open-Meteo returns local wall-clock strings like "2026-09-10T14:00" when
+// timezone=auto is set — parsed as-is (no further TZ conversion) to avoid
+// double-shifting them relative to the forecast location.
+function formatHourLabel(localIso) {
+  const hour = Number(localIso.slice(11, 13));
+  if (hour === 0) return '12am';
+  if (hour === 12) return '12pm';
+  return hour < 12 ? `${hour}am` : `${hour - 12}pm`;
+}
+function formatDayLabel(localDate, index) {
+  if (index === 0) return 'Today';
+  const [y, m, d] = localDate.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-GB', { weekday: 'short', timeZone: 'UTC' });
+}
+
 let weatherCache = { data: null, fetchedAt: 0, key: null };
 app.get('/api/weather', requireDb, async (req, res) => {
   const settings = await getSettings();
@@ -111,13 +126,19 @@ app.get('/api/weather', requireDb, async (req, res) => {
     return res.json(weatherCache.data);
   }
   try {
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min,weather_code&timezone=auto`;
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&hourly=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min,weather_code&timezone=auto`;
     const resp = await fetch(url);
     if (!resp.ok) throw new Error(`Open-Meteo responded ${resp.status}`);
     const raw = await resp.json();
 
     const currentCode = raw.current?.weather_code ?? 0;
     const todayCode = raw.daily?.weather_code?.[0] ?? currentCode;
+
+    const hourlyTimes = raw.hourly?.time || [];
+    const startIdx = Math.max(
+      0,
+      hourlyTimes.findIndex((t) => t >= raw.current?.time)
+    );
 
     const data = {
       location: locationName,
@@ -126,6 +147,25 @@ app.get('/api/weather', requireDb, async (req, res) => {
       todayHighC: Math.round(raw.daily?.temperature_2m_max?.[0]),
       todayLowC: Math.round(raw.daily?.temperature_2m_min?.[0]),
       today: WEATHER_CODES[todayCode] || { text: 'Unknown', icon: 'cloud' },
+      hourly: hourlyTimes.slice(startIdx, startIdx + 12).map((t, i) => {
+        const idx = startIdx + i;
+        const code = raw.hourly.weather_code[idx];
+        return {
+          hourLabel: formatHourLabel(t),
+          tempC: Math.round(raw.hourly.temperature_2m[idx]),
+          icon: (WEATHER_CODES[code] || {}).icon || 'cloud',
+        };
+      }),
+      daily: (raw.daily?.time || []).map((d, i) => {
+        const code = raw.daily.weather_code[i];
+        return {
+          dayLabel: formatDayLabel(d, i),
+          tempHighC: Math.round(raw.daily.temperature_2m_max[i]),
+          tempLowC: Math.round(raw.daily.temperature_2m_min[i]),
+          icon: (WEATHER_CODES[code] || {}).icon || 'cloud',
+          text: (WEATHER_CODES[code] || {}).text || 'Unknown',
+        };
+      }),
     };
     weatherCache = { data, fetchedAt: now, key: cacheKey };
     res.json(data);
@@ -192,6 +232,10 @@ const PUBLIC_SETTING_KEYS = [
   'theme',
   'logo_data_url',
   'background_data_url',
+  'kiosk_idle_minutes',
+  'kiosk_default_duration',
+  'kiosk_night_start',
+  'kiosk_night_end',
 ];
 const MAX_LOGO_DATA_URL_LENGTH = 1_500_000; // ~1MB of base64, plenty for a small logo
 const MAX_BACKGROUND_DATA_URL_LENGTH = 2_500_000; // background images can be a bit bigger
@@ -234,7 +278,7 @@ app.get('/api/backup', requireDb, auth.requireEdit, async (req, res) => {
   try {
     const yamlText = await buildBackupYaml();
     res.setHeader('Content-Type', 'application/x-yaml');
-    res.setHeader('Content-Disposition', `attachment; filename="intrahub-backup-${new Date().toISOString().slice(0, 10)}.yml"`);
+    res.setHeader('Content-Disposition', `attachment; filename="alcove-backup-${new Date().toISOString().slice(0, 10)}.yml"`);
     res.send(yamlText);
   } catch (err) {
     console.error('Backup export failed:', err.message);
@@ -269,7 +313,7 @@ app.post('/api/backup', requireDb, auth.requireEdit, async (req, res) => {
 app.get('/api/dashboard', requireDb, async (req, res) => {
   const settings = await getSettings();
   const { rows: sections } = await pool.query(
-    'SELECT id, type, title, enabled, sort_order, accent_color FROM sections ORDER BY sort_order ASC, id ASC'
+    'SELECT id, type, title, enabled, sort_order, accent_color, kiosk_enabled, kiosk_duration_seconds, card_size FROM sections ORDER BY sort_order ASC, id ASC'
   );
 
   for (const section of sections) {
@@ -349,7 +393,7 @@ app.post('/api/sections', requireDb, auth.requireEdit, async (req, res) => {
   const { rows: maxRows } = await pool.query('SELECT COALESCE(MAX(sort_order), 0) AS max FROM sections');
   const sortOrder = maxRows[0].max + 1;
   const { rows } = await pool.query(
-    'INSERT INTO sections (type, title, sort_order) VALUES ($1, $2, $3) RETURNING id, type, title, enabled, sort_order, accent_color',
+    'INSERT INTO sections (type, title, sort_order) VALUES ($1, $2, $3) RETURNING id, type, title, enabled, sort_order, accent_color, kiosk_enabled, kiosk_duration_seconds, card_size',
     [type, (title || type).trim() || type, sortOrder]
   );
   if (type === 'countdown') {
@@ -400,10 +444,24 @@ app.patch('/api/sections/:id', requireDb, auth.requireEdit, async (req, res) => 
     fields.push(`accent_color = $${i++}`);
     values.push(typeof body.accent_color === 'string' && body.accent_color.trim() ? body.accent_color.trim() : null);
   }
+  if (typeof body.kiosk_enabled === 'boolean') {
+    fields.push(`kiosk_enabled = $${i++}`);
+    values.push(body.kiosk_enabled);
+  }
+  // kiosk_duration_seconds: a positive number sets a per-section override,
+  // null explicitly clears it back to the dashboard-wide default.
+  if ('kiosk_duration_seconds' in body) {
+    fields.push(`kiosk_duration_seconds = $${i++}`);
+    values.push(Number.isFinite(body.kiosk_duration_seconds) && body.kiosk_duration_seconds > 0 ? Math.round(body.kiosk_duration_seconds) : null);
+  }
+  if (['small', 'medium', 'large'].includes(body.card_size)) {
+    fields.push(`card_size = $${i++}`);
+    values.push(body.card_size);
+  }
   if (!fields.length) return res.status(400).json({ error: 'nothing to update' });
   values.push(req.params.id);
   const { rows } = await pool.query(
-    `UPDATE sections SET ${fields.join(', ')} WHERE id = $${i} RETURNING id, type, title, enabled, sort_order, accent_color`,
+    `UPDATE sections SET ${fields.join(', ')} WHERE id = $${i} RETURNING id, type, title, enabled, sort_order, accent_color, kiosk_enabled, kiosk_duration_seconds, card_size`,
     values
   );
   if (!rows[0]) return res.status(404).json({ error: 'not found' });
@@ -777,5 +835,5 @@ app.get('/api/health', (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`IntraHub listening on port ${PORT}`);
+  console.log(`Alcove listening on port ${PORT}`);
 });
